@@ -9,8 +9,7 @@ Dictionary::Dictionary(Language language)
 	std::string filename;
 	
 	if (language == Language::ENGLISH)
-		//filename = "D:\\work\\Spring2022\\EthRecovery\\ethrecovery\\wordlists\\bip39-en.txt";
-		filename = ".\\wordlists\\bip39-en.txt";
+		filename = "./wordlists/bip39-en.txt";
 	else
 		assert(false);
 
@@ -33,4 +32,47 @@ bool Dictionary::getId(size_t& id, const std::string& word) const
 
 	id = it->second;
 	return true;
+}
+
+bool Dictionary::getWord(size_t id, std::string& word) const
+{
+	for(const auto &pair : m_words)
+		if (pair.second == id) {
+			word = pair.first;
+			return true;
+		}
+
+	return false;
+}
+
+size_t Dictionary::sizePow() const
+{
+	size_t size = m_words.size();
+	assert((size & (size - 1)) == 0);
+
+	size_t result = -1;
+	while (size != 0) {
+		size >>= 1;
+		result++;
+	}
+
+	return result;
+}
+
+std::vector<uint8_t> Dictionary::get(size_t wordSizeMax) const
+{
+	std::vector<uint8_t> dict(m_words.size() * (wordSizeMax + 1));
+
+	for (auto pair : m_words) {
+		size_t id = pair.second;
+		size_t offset = id * (wordSizeMax + 1);
+		const std::string &word = pair.first;
+		assert(word.size() <= wordSizeMax);
+		for (size_t i = 0; i < word.size(); i++)
+			dict.at(offset + i) = word.at(i);
+		for (size_t i = word.size(); i < wordSizeMax + 1; i++)
+			dict.at(offset + i) = '\0';
+	}
+
+	return dict;
 }

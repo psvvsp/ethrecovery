@@ -29,6 +29,10 @@ int main(int argc, char* argv[])
         return e.get_exit_code();
     }
 
+    std::cout << "Address: " << params.address << std::endl;
+    std::cout << "Mnemonic: " << params.mnemonic << std::endl;
+    std::cout << "Mnemonic length: " << params.mnemonicLength << std::endl;
+
     std::string mnemonic = ethrecover(params);
     if (mnemonic.empty())
     {
