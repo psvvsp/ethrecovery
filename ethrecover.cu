@@ -1,5 +1,6 @@
 #include "ethrecover.h"
 
+#include "addressdb.h"
 #include "biginteger.cuh"
 #include "derivpathstorage.h"
 #include "dictionary.h"
@@ -23,13 +24,15 @@
 #include "inc_ecc_secp256k1.h"
 
 #include <bitset>
+#include <chrono>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <vector>
 
 #define MAX_WORD_LENGTH 15
 #define MAX_MNEMONIC_LENGTH 24
-#define MAX_POSITIONS_NUMBER 10000
+#define MAX_POSITIONS_NUMBER 10626
 #define DERIVATION_PATH_BUFFER_COUNT 128
 #define ADDRESS_LENGTH 20
 
@@ -44,7 +47,7 @@ __constant__ uint32_t s_generator_order[8] = {
 };
 __constant__ uint8_t s_address[ADDRESS_LENGTH];
 
-__device__ void printBuffer(const uint8_t* buffer, uint32_t size)
+__host__ __device__ void printBuffer(const uint8_t* buffer, uint32_t size)
 {
 	for (uint32_t i = 0; i < size; i++)
 		printf("%02x", uint32_t(buffer[i]));
@@ -80,128 +83,151 @@ __device__ void private_to_public_full(const uint32_t* pri, uint32_t* pub)
 		pub[i + 8] = hc_swap32_S(y[7 - i]);
 }
 
-struct MnemonicDescription
-{
-	uint32_t pos; 
-	uint32_t blockId;
-};
-
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
 __global__ void ethrecover_checksum_kernel(
-	uint32_t offset,
+	uint64_t offset,
+	uint64_t mnemNum,
 	uint32_t mnemonicNumber,
 	uint32_t posNum,
-	MnemonicDescription* result,
+	uint64_t * mnemIds,
 	uint32_t *resultNum)
 {
-	__shared__ uint16_t wordIds[4];
-
 	uint32_t gapSize = MNEMONIC_LENGTH - mnemonicNumber;
+	uint64_t mnemId = offset + blockIdx.x*blockDim.x + threadIdx.x;
 
-	if (threadIdx.x == 0) {
-		uint32_t blockId = blockIdx.x + offset;
-		for (uint32_t i = 0; i < gapSize; i++) {
-			wordIds[i] = blockId & ((1 << DICTIONARY_POW) - 1);
-			blockId = blockId >> DICTIONARY_POW;
-		}
+	if (mnemId >= mnemNum)
+		return;
+
+	uint32_t posId = mnemId % posNum;
+	mnemId /= posNum;
+
+	uint16_t wordIds[4];
+
+	for (uint32_t i = 0; i < gapSize; i++) {
+		wordIds[i] = mnemId & ((1 << DICTIONARY_POW) - 1);
+		mnemId = mnemId >> DICTIONARY_POW;
 	}
 
-	__syncthreads();
+	uint32_t pos = s_positions[posId];
+	uint8_t* posArr = reinterpret_cast<uint8_t*>(&pos);
 
-	for (uint32_t posId = threadIdx.x; posId < posNum; posId += blockDim.x) {
+	EntropyBuffer<DICTIONARY_POW, MNEMONIC_LENGTH> entropyBuffer;
 
-		uint32_t pos = s_positions[posId];
-		uint8_t* posArr = reinterpret_cast<uint8_t*>(&pos);
-
-		EntropyBuffer<DICTIONARY_POW, MNEMONIC_LENGTH> entropyBuffer;
-
-		uint32_t j = 0;
-		for (uint32_t i = 0; i < mnemonicNumber; i++) {
-			while (j < gapSize && posArr[j] == i) {
-				entropyBuffer.append(wordIds[j]);
-				j++;
-			}
-			entropyBuffer.append(s_mnemonics[i]);
-		}
-		while (j < gapSize && posArr[j] == mnemonicNumber) {
+	uint32_t j = 0, k = 0;
+	for (uint32_t i = 0; i < MNEMONIC_LENGTH; i++) {
+		if (j < gapSize && posArr[j] == i) {
 			entropyBuffer.append(wordIds[j]);
 			j++;
 		}
-
-		const uint32_t* data = reinterpret_cast<const uint32_t*>(entropyBuffer.entropyBytesData());
-		int len = static_cast<int>(entropyBuffer.entropyBytesSize() >> 2);
-
-		sha256_ctx_t ctx256;
-		sha256_init(&ctx256);
-		sha256_update(&ctx256, data, len);
-		sha256_final(&ctx256);
-
-		uint32_t checkSum1 = reinterpret_cast<uint8_t*>(ctx256.h)[0]
-			>> (8 - EntropyBuffer<DICTIONARY_POW, MNEMONIC_LENGTH>::checksum_bit_size);
-
-		uint32_t checkSum2 = entropyBuffer.checkSum();
-
-		//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-		//	printf("checkSum1 = %u, checkSum2 = %u\n", checkSum1, checkSum2);
-		//}
-
-		if (checkSum1 == checkSum2) {
-			uint32_t resultId = atomicAdd(resultNum, 1);
-			
-			MnemonicDescription descr;
-			descr.pos = pos;
-			descr.blockId = blockIdx.x + offset;
-
-			result[resultId] = descr;
+		else {
+			entropyBuffer.append(s_mnemonics[k]);
+			k++;
 		}
+	}
+
+	const uint32_t* data = reinterpret_cast<const uint32_t*>(entropyBuffer.entropyBytesData());
+	int len = static_cast<int>(entropyBuffer.entropyBytesSize());
+
+	sha256_ctx_t ctx256;
+	sha256_init(&ctx256);
+	sha256_update_swap(&ctx256, data, len);
+	sha256_final(&ctx256);
+
+	uint32_t checkSum1 = reinterpret_cast<uint8_t*>(ctx256.h)[3]
+		>> (8 - EntropyBuffer<DICTIONARY_POW, MNEMONIC_LENGTH>::checksum_bit_size);
+
+	uint32_t checkSum2 = entropyBuffer.checkSum();
+
+	//if (wordIds[0] == 788) {
+	//	printf("mnemId = %llu\n", offset + blockIdx.x * blockDim.x + threadIdx.x);
+	//	printBuffer(entropyBuffer.entropyBytesData(), entropyBuffer.entropyBytesSize());
+	//	printBuffer(reinterpret_cast<uint8_t*>(ctx256.h), 32);
+	//	printf("checkSum1 = %u, checkSum2 = %u\n", checkSum1, checkSum2);
+	//}
+
+	if (checkSum1 == checkSum2) {
+		uint32_t resultId = atomicAdd(resultNum, 1);
+		mnemIds[resultId] = offset + blockIdx.x * blockDim.x + threadIdx.x;
 	}
 }
 
+static __device__ bool findInDatabase(const uint8_t* address, const uint64_t* database, const AddressDbParams &params)
+{
+	uint32_t hash_bytes = hc_swap32_S(*reinterpret_cast<const uint32_t*>(address + 16));
+	uint32_t position = hash_bytes & params.hash_mask;
+	//uint64_t addr_to_find = hc_swap64_S(*reinterpret_cast<const uint64_t*>(address + 4));
+	uint64_t addr_to_find; memcpy(&addr_to_find, address + 8, 8);
+
+	while (true) {
+		uint64_t cur_addr = database[position];
+		if (cur_addr == 0)
+			return false;
+		if (cur_addr == addr_to_find)
+			return true;
+		position++;
+		if (position == params.table_bytes / 8)
+			position = 0;
+	}
+
+	return false;
+}
+
+struct Result 
+{
+	uint32_t addressIdx;
+	uint32_t derPathIdx;
+	uint64_t mnemonic;
+};
 
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
 __global__ void ethrecover_kernel(
-	MnemonicDescription* mnemonicDescr,
-	uint32_t* mnemonicDescrNum,
+	uint64_t* mnemIds,
+	uint32_t* mnemIdsNum,
 	uint32_t mnemonicNumber,
 	uint32_t posNum,
-	uint64_t *resultGPU,
-	const uint8_t *dictionary)
+	uint32_t addressStartIndex,
+	uint32_t addrsToGenerate,
+	Result *resultGPU,
+	const uint8_t *dictionary,
+	const uint64_t *addressDb,
+	AddressDbParams addressDbParams)
 {
-	__shared__ uint32_t mnemDescrNumShared;
-	if (threadIdx.x) {
-		mnemDescrNumShared = *mnemonicDescrNum;
+	__shared__ uint32_t mnemIdsNumShared;
+	if (threadIdx.x == 0) {
+		mnemIdsNumShared = *mnemIdsNum;
 	}
 	__syncthreads();
 
 	uint32_t gapSize = MNEMONIC_LENGTH - mnemonicNumber;
-
 	uint32_t id = blockIdx.x * blockDim.x + threadIdx.x;
-	for (; id < mnemDescrNumShared; id += blockDim.x*gridDim.x) {
 
-		MnemonicDescription mnemDescr = mnemonicDescr[id];
+	for (; id < mnemIdsNumShared; id += blockDim.x*gridDim.x) {
 
-		uint32_t blockId = mnemDescr.blockId;
-		uint8_t* posArr = reinterpret_cast<uint8_t*>(&mnemDescr.pos);
+		uint64_t mnemId = mnemIds[id];
+		uint32_t posId = mnemId % posNum;
+
+		uint32_t pos = s_positions[posId];
+		uint8_t* posArr = reinterpret_cast<uint8_t*>(&pos);
+		uint64_t mnemIdCopy = mnemId / posNum;
 
 		uint16_t wordIds[4];
 		for (uint32_t i = 0; i < gapSize; i++) {
-			wordIds[i] = blockId & ((1 << DICTIONARY_POW) - 1);
-			blockId = blockId >> DICTIONARY_POW;
+			wordIds[i] = mnemIdCopy & ((1 << DICTIONARY_POW) - 1);
+			mnemIdCopy = mnemIdCopy >> DICTIONARY_POW;
 		}
 
 		MnemBuilder<MNEMONIC_LENGTH, MAX_WORD_LENGTH> mnemBuilder(dictionary, 1 << DICTIONARY_POW);
 
-		uint32_t j = 0;
-		for (uint32_t i = 0; i < mnemonicNumber; i++) {
-			while (j < gapSize && posArr[j] == i) {
+		uint32_t j = 0, k = 0;
+		for (uint32_t i = 0; i < MNEMONIC_LENGTH; i++) {
+			if (j < gapSize && posArr[j] == i) {
 				mnemBuilder.add(wordIds[j]);
 				j++;
 			}
-			mnemBuilder.add(s_mnemonics[i]);
-		}
-		while (j < gapSize && posArr[j] == mnemonicNumber) {
-			mnemBuilder.add(wordIds[j]);
-			j++;
+			else {
+				mnemBuilder.add(s_mnemonics[k]);
+				k++;
+			}
 		}
 
 		//__device__ void pbkdf2(
@@ -213,7 +239,11 @@ __global__ void ethrecover_kernel(
 		pbkdf2(mnemBuilder.mnemo(), mnemBuilder.mnemoSizeBytes(),
 			reinterpret_cast<const uint64_t*>(s_salt), 8, result,	2048, 64);
 
-		//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+		//if (mnemId == 1237) {
+		//	printf("wordIds[0] = %d, posArr[0] = %d\n", int(wordIds[0]), int(posArr[0]));
+		//}
+
+		//if (wordIds[0] == 1551 && posArr[0] == MNEMONIC_LENGTH - 1) {
 		//	printBuffer(reinterpret_cast<uint8_t*>(result), 64);
 		//}
 
@@ -226,14 +256,14 @@ __global__ void ethrecover_kernel(
 		for (int i = 0; i < 8; i++)
 			h[i] = hc_swap64_S(ctx512.opad.h[i]);
 
-		//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+		//if (wordIds[0] == 1551) {
 		//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
 		//}
 
 		uint32_t I = 0;
 		uint32_t current_path_index_length = s_derivation_path_buffer[I++];
 		
-		while (current_path_index_length != 0) {
+		for (uint32_t k = 0; current_path_index_length != 0; k++) {
 
 			uint32_t privkey_bytes[8];
 			memcpy(privkey_bytes, h, 32);
@@ -308,7 +338,7 @@ __global__ void ethrecover_kernel(
 			uint32_t hmac_data[32] = { 0 };
 			private_to_public(privkey_bytes, hmac_data);
 
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+			//if (wordIds[0] == 1551) {
 			//	printf("\n XXXXXXXXXXXXXXXXXXXXX hmac_data = \n");
 			//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 33);
 			//}
@@ -318,78 +348,87 @@ __global__ void ethrecover_kernel(
 
 			BigInteger<8> privkey_int(privkey_bytes);
 
-			//memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 33, s_address, ADDRESS_LENGTH);
+			for (uint32_t j = addressStartIndex; j < addrsToGenerate; j++) {
 
-			sha512_hmac_init_swap(&ctx512, chaincode_bytes, 32);
-			sha512_hmac_update_swap(&ctx512, hmac_data, 37);
-			sha512_hmac_final(&ctx512);
+				uint32_t tmp = hc_swap32_S(j);
+				memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 33, &tmp, 4);
 
-			uint64_t h[8];
-			for (int i = 0; i < 8; i++)
-				h[i] = hc_swap64_S(ctx512.opad.h[i]);
+				sha512_hmac_init_swap(&ctx512, chaincode_bytes, 32);
+				sha512_hmac_update_swap(&ctx512, hmac_data, 37);
+				sha512_hmac_final(&ctx512);
 
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX h = \n");
-			//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
-			//}
+				uint64_t h[8];
+				for (int i = 0; i < 8; i++)
+					h[i] = hc_swap64_S(ctx512.opad.h[i]);
 
-			for (int i = 0; i < 8; i++)
-				reinterpret_cast<uint32_t*>(h)[i] = hc_swap32_S(reinterpret_cast<uint32_t*>(h)[i]);
+				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX h = \n");
+				//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
+				//}
 
-			BigInteger<8> bigInt(reinterpret_cast<uint32_t*>(h));
-			bigInt += privkey_int;
+				for (int i = 0; i < 8; i++)
+					reinterpret_cast<uint32_t*>(h)[i] = hc_swap32_S(reinterpret_cast<uint32_t*>(h)[i]);
 
-			BigInteger<8> bigInt3(s_generator_order);
-			bigInt.mod(bigInt3);
+				BigInteger<8> bigInt(reinterpret_cast<uint32_t*>(h));
+				bigInt += privkey_int;
 
-			uint32_t d_privkey_bytes[8];
-			memcpy(d_privkey_bytes, bigInt.get(), 32);
+				BigInteger<8> bigInt3(s_generator_order);
+				bigInt.mod(bigInt3);
 
-			for (int i = 0; i < 8; i++)
-				d_privkey_bytes[i] = hc_swap32_S(d_privkey_bytes[i]);
+				uint32_t d_privkey_bytes[8];
+				memcpy(d_privkey_bytes, bigInt.get(), 32);
 
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
-			//	printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
-			//}
+				for (int i = 0; i < 8; i++)
+					d_privkey_bytes[i] = hc_swap32_S(d_privkey_bytes[i]);
 
-			uint32_t d_pubkey[32] = { 0 };
-			private_to_public_full(d_privkey_bytes, d_pubkey);
+				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
+				//	printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
+				//}
 
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
-			//	printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
-			//}
+				uint32_t d_pubkey[32] = { 0 };
+				private_to_public_full(d_privkey_bytes, d_pubkey);
 
-			uint32_t r[8];
-			keccak256(r, d_pubkey, 64);
+				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
+				//	printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
+				//}
 
-			bool equal = true;
+				uint32_t r[8];
+				keccak256(r, d_pubkey, 64);
 
-			const uint32_t* addressWords = reinterpret_cast<uint32_t*>(s_address);
-			//const uint32_t* addressWordsTest = reinterpret_cast<uint32_t*>(d_ctx512.h) + 11;
-			const uint32_t* addressWordsTest = r + 3;
+				bool equal = true;
 
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWords = \n");
-			//	printBuffer(reinterpret_cast<const uint8_t *>(addressWords), 20);
+				const uint32_t* addressWords = reinterpret_cast<uint32_t*>(s_address);
+				//const uint32_t* addressWordsTest = reinterpret_cast<uint32_t*>(d_ctx512.h) + 11;
+				const uint32_t* addressWordsTest = r + 3;
 
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWordsTest = \n");
-			//	printBuffer(reinterpret_cast<const uint8_t*>(addressWordsTest), 20);
+				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWords = \n");
+				//	printBuffer(reinterpret_cast<const uint8_t *>(addressWords), 20);
 
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX r = \n");
-			//	printBuffer(reinterpret_cast<const uint8_t*>(r), 32);
-			//}
+				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWordsTest = \n");
+				//	printBuffer(reinterpret_cast<const uint8_t*>(addressWordsTest), 20);
 
+				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX r = \n");
+				//	printBuffer(reinterpret_cast<const uint8_t*>(r), 32);
+				//}
 
-			for (int i = 0; i < 5; i++)
-				if (addressWords[i] != addressWordsTest[i])
-					equal = false;
+				if (!addressDb) {
+					for (int i = 0; i < 5; i++)
+						if (addressWords[i] != addressWordsTest[i])
+							equal = false;
+				}
+				else {
+					//printf("XXX");
+					equal = findInDatabase(reinterpret_cast<const uint8_t*>(addressWordsTest), addressDb, addressDbParams);
+				}
 
-			if (equal) {
-				//printf("\n FOUND!!!\n");
-				uint64_t f = (uint64_t(mnemDescr.blockId) << 32) | mnemDescr.pos;
-				*resultGPU = f;
+				if (equal) {
+					resultGPU->derPathIdx = k;
+					resultGPU->addressIdx = j;
+					resultGPU->mnemonic = mnemId;
+				}
 			}
 
 			I += current_path_index_length;
@@ -426,6 +465,9 @@ static bool verify_checksum(
 	SHA256 hasher;
 	hasher.update(entropy_bytes.data(), entropy_bytes.size());
 	uint8_t *digest = hasher.digest();
+
+	printBuffer(entropy_bytes.data(), entropy_bytes.size());
+	printBuffer(digest, 32);
 
 	uint8_t candidate = digest[0] >> 8 - cksum_len_in_bits;
 
@@ -474,27 +516,54 @@ static bool verify_checksum(
 //	return candidate == buf.checkSum();
 //}
 
-std::string ethrecover(const Params& params)
+static std::vector<std::string> split(const std::string str)
 {
-	std::vector<std::string> mnemonicVector;
-	std::stringstream ss(params.mnemonic);
+	std::vector<std::string> result;
+
+	std::stringstream ss(str);
 
 	while (true) {
 		std::string s;
 		ss >> s;
-		if (ss)	mnemonicVector.push_back(s);
+		if (ss)	result.push_back(s);
 		else break;
 	}
 
+	return result;
+}
+
+static std::set<size_t> parseMissingPositions(const std::string missingPositions, size_t mnemonicLength)
+{
+	std::set<size_t> result;
+	
+	std::vector<std::string> v = split(missingPositions);
+
+	for (const std::string& s : v) {
+		size_t pos = std::stoi(s);
+		if (pos >= mnemonicLength)
+			std::cout << "Warning: invalid missing word position " << pos << std::endl;
+		else
+			result.insert(pos);
+	}
+	
+	return result;
+}
+
+std::string ethrecover(const Params& params)
+{
+	std::vector<std::string> mnemonicVector = split(params.mnemonic);
 	if (mnemonicVector.size() >= params.mnemonicLength)
 		return params.mnemonic;
 
 	size_t gapSize = params.mnemonicLength - mnemonicVector.size();
-
-	PosGen posGen(unsigned(params.mnemonicLength), unsigned(gapSize));
-	std::vector<unsigned> positions = posGen.gen();
+	std::set<size_t> missingPositions = parseMissingPositions(params.missingPositions, params.mnemonicLength);
 
 	Dictionary dict(params.language);
+
+	//verify_checksum(dict, mnemonicVector);
+
+	PosGen posGen(unsigned(params.mnemonicLength), unsigned(gapSize), missingPositions);
+	std::vector<unsigned> positions = posGen.gen();
 
 	std::vector<uint16_t> mnemonics(mnemonicVector.size());
 	for (size_t i = 0; i < mnemonicVector.size(); i++) {
@@ -504,9 +573,9 @@ std::string ethrecover(const Params& params)
 		mnemonics.at(i) = static_cast<uint16_t>(id);
 	}
 
-	uint64_t* result = nullptr;
-	CUDA_CALL(cudaMalloc(&result, sizeof(uint64_t)));
-	CUDA_CALL(cudaMemset(result, 0xff, sizeof(uint64_t)));
+	Result* result = nullptr;
+	CUDA_CALL(cudaMalloc(&result, sizeof(Result)));
+	CUDA_CALL(cudaMemset(result, 0xff, sizeof(Result)));
 
 	CUDA_CALL(cudaMemcpyToSymbol(s_mnemonics, mnemonics.data(), mnemonics.size() * sizeof(uint16_t)));
 	CUDA_CALL(cudaMemcpyToSymbol(s_positions, positions.data(), positions.size() * sizeof(uint32_t)));
@@ -526,55 +595,95 @@ std::string ethrecover(const Params& params)
 	derivationPathBuffer.resize(DERIVATION_PATH_BUFFER_COUNT, 0);
 	CUDA_CALL(cudaMemcpyToSymbol(s_derivation_path_buffer, derivationPathBuffer.data(), derivationPathBuffer.size()*sizeof(uint32_t)));
 
-	std::vector<uint8_t> addressBuffer(ADDRESS_LENGTH);
-	for (size_t i = 0; i < ADDRESS_LENGTH; i++) {
-		std::string byte = params.address.substr(2 * i + 2, 2);
-		addressBuffer.at(i) = std::stoi(byte, nullptr, 16);
-	}
-	CUDA_CALL(cudaMemcpyToSymbol(s_address, addressBuffer.data(), addressBuffer.size()));
+	uint64_t *addressDbPtr = nullptr;
+	AddressDbParams addressDbParams;
 
-	uint32_t* mnemonicDescriptionNum = nullptr;
-	CUDA_CALL(cudaMalloc(&mnemonicDescriptionNum, sizeof(uint32_t)));
+	if (!params.address.empty()) {
+		
+		std::vector<uint8_t> addressBuffer(ADDRESS_LENGTH);
+		for (size_t i = 0; i < ADDRESS_LENGTH; i++) {
+			std::string byte = params.address.substr(2 * i + 2, 2);
+			addressBuffer.at(i) = std::stoi(byte, nullptr, 16);
+		}
+		CUDA_CALL(cudaMemcpyToSymbol(s_address, addressBuffer.data(), addressBuffer.size()));
+	} 
+	else {
+		AddressDb addressDb(params.addressdb);
+		if (!addressDb.success()) {
+			std::cout << "Failed to read addresses database" << std::endl;
+			return std::string();
+		}
+		
+		const std::vector<char>& db = addressDb.getData();
+		
+		CUDA_CALL(cudaMalloc(&addressDbPtr, db.size()));
+		CUDA_CALL(cudaMemcpy(addressDbPtr, db.data(), db.size(), cudaMemcpyHostToDevice));
+
+		addressDbParams = addressDb.getParams();
+	}
+
+	uint32_t* mnemIdsNum = nullptr;
+	CUDA_CALL(cudaMalloc(&mnemIdsNum, sizeof(uint32_t)));
 
 	unsigned threadsPerBlock = 256;
 	
-	unsigned blocksPerGrid = 1;
+	size_t mnemNum = 1;
 	for (size_t i = 0; i < gapSize; i++)
-		blocksPerGrid *= (1 << dict.sizePow());
+		mnemNum *= (size_t(1) << dict.sizePow());
+	mnemNum *= positions.size();
 
-	std::cout << "Number of mnemonics to check: " << blocksPerGrid * positions.size() << std::endl;
+	std::cout << "Number of mnemonics to check: " << mnemNum << std::endl;
+	std::cout << std::endl;
 
-	const unsigned blocksPerGridMax = 1024;
-	unsigned numLaunches = (blocksPerGrid + blocksPerGridMax - 1) / 1024;
+	const unsigned blocksPerGrid = 1024;
+	const unsigned threadsPerGrid = threadsPerBlock * blocksPerGrid;
 
-	MnemonicDescription* mnemonicDescription = nullptr;
-	size_t mnemonicDescriptionNumMax = 16 * blocksPerGridMax * positions.size();
-	CUDA_CALL(cudaMalloc(&mnemonicDescription, mnemonicDescriptionNumMax*sizeof(MnemonicDescription)));
+	size_t numLaunches = ((mnemNum - params.skip)+ threadsPerGrid - 1) / threadsPerGrid;
 
-	uint64_t resultCPU = uint64_t(-1);
+	uint64_t* mnemIds = nullptr;
+	size_t mnemIdsNumMax = 16 * threadsPerGrid;
+	CUDA_CALL(cudaMalloc(&mnemIds, mnemIdsNumMax*sizeof(uint64_t)));
 
-	CUDA_CALL(cudaMemset(mnemonicDescriptionNum, 0x00, sizeof(uint32_t)));
+	Result resultCPU;
 
-	for (unsigned launch = 0; launch < numLaunches; launch++) {
+	CUDA_CALL(cudaMemset(mnemIdsNum, 0x00, sizeof(uint32_t)));
+
+	using namespace std::chrono;
+	steady_clock::time_point begin = steady_clock::now();
+	steady_clock::time_point beginFile = begin;
+
+	for (size_t launch = 0; launch < numLaunches; launch++) {
 		
-		unsigned offset = launch * blocksPerGridMax;
-		unsigned blocksPerGridLaunch = std::min(blocksPerGridMax, blocksPerGrid - offset);
+		size_t offset = params.skip + launch * threadsPerGrid;
 
 		if (dict.sizePow() == 11 && params.mnemonicLength == 12) {
 
+			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
 			//__global__ void ethrecover_checksum_kernel(
-			//	uint32_t offset,
+			//	uint64_t offset,
+			//	uint64_t mnemNum,
 			//	uint32_t mnemonicNumber,
 			//	uint32_t posNum,
-			//	MnemonicDescription * result,
+			//	uint64_t * mnemIds,
 			//	uint32_t * resultNum)
 
-			ethrecover_checksum_kernel<11, 12> << <blocksPerGridLaunch, threadsPerBlock >> > (
+			ethrecover_checksum_kernel<11, 12> << <blocksPerGrid, threadsPerBlock >> > (
 				offset,
+				mnemNum,
 				static_cast<uint32_t>(mnemonics.size()),
 				static_cast<uint32_t>(positions.size()),
-				mnemonicDescription,
-				mnemonicDescriptionNum);
+				mnemIds,
+				mnemIdsNum);
+		}
+		else if (dict.sizePow() == 11 && params.mnemonicLength == 24) {
+			
+			ethrecover_checksum_kernel<11, 24> << <blocksPerGrid, threadsPerBlock >> > (
+				offset,
+				mnemNum,
+				static_cast<uint32_t>(mnemonics.size()),
+				static_cast<uint32_t>(positions.size()),
+				mnemIds,
+				mnemIdsNum);
 		}
 		else {
 			assert(false);
@@ -586,21 +695,45 @@ std::string ethrecover(const Params& params)
 		if (((launch > 0) && (launch % 16 == 0)) || launch == numLaunches - 1) {
 
 			if (dict.sizePow() == 11 && params.mnemonicLength == 12) {
+
 				//__global__ void ethrecover_kernel(
-				//	MnemonicDescription * mnemonicDescr,
-				//	uint32_t * mnemonicDescrNum,
+				//	uint64_t * mnemIds,
+				//	uint32_t * mnemIdsNum,
 				//	uint32_t mnemonicNumber,
 				//	uint32_t posNum,
-				//	uint64_t * resultGPU,
-				//	const uint8_t * dictionary)
+				//	uint32_t addressStartIndex,
+				//	uint32_t addrsToGenerate,
+				//	Result * resultGPU,
+				//	const uint8_t * dictionary,
+				//  const uint64_t* addressDb,
+			    //  AddressDbParams addressDbParams)
+				//	)
 
-				ethrecover_kernel<11, 12> << <blocksPerGridMax, threadsPerBlock >> > (
-					mnemonicDescription,
-					mnemonicDescriptionNum,
+				ethrecover_kernel<11, 12> << <blocksPerGrid, threadsPerBlock >> > (
+					mnemIds,
+					mnemIdsNum,
 					static_cast<uint32_t>(mnemonics.size()),
 					static_cast<uint32_t>(positions.size()),
+					params.addressStartIndex,
+					params.addrsToGenerate,
 					result,
-					dictionaryGPU);
+					dictionaryGPU,
+					addressDbPtr,
+					addressDbParams);
+			}
+			else if (dict.sizePow() == 11 && params.mnemonicLength == 24) {
+
+				ethrecover_kernel<11, 24> << <blocksPerGrid, threadsPerBlock >> > (
+					mnemIds,
+					mnemIdsNum,
+					static_cast<uint32_t>(mnemonics.size()),
+					static_cast<uint32_t>(positions.size()),
+					params.addressStartIndex,
+					params.addrsToGenerate,
+					result,
+					dictionaryGPU,
+					addressDbPtr,
+					addressDbParams);
 			}
 			else {
 				assert(false);
@@ -609,22 +742,40 @@ std::string ethrecover(const Params& params)
 			CUDA_CALL(cudaGetLastError());
 			CUDA_CALL(cudaDeviceSynchronize());
 
-			CUDA_CALL(cudaMemcpy(&resultCPU, result, sizeof(uint64_t), cudaMemcpyDeviceToHost));
+			CUDA_CALL(cudaMemcpy(&resultCPU, result, sizeof(Result), cudaMemcpyDeviceToHost));
 
-			if (resultCPU != uint64_t(-1))
+			if (resultCPU.mnemonic != uint64_t(-1))
 				break;
 
-			CUDA_CALL(cudaMemset(mnemonicDescriptionNum, 0x00, sizeof(uint32_t)));
+			CUDA_CALL(cudaMemset(mnemIdsNum, 0x00, sizeof(uint32_t)));
 
-			std::cout << "Processed " << (offset + blocksPerGridLaunch) * positions.size() << " mnemonics\r";
+			std::cout << "Processed " << offset << " mnemonics";
+			if (launch > 0) {
+				steady_clock::time_point end = steady_clock::now();
+				auto time_span = duration_cast<duration<double>>(end - begin);
+				std::cout << " (" << 16*size_t(threadsPerGrid / time_span.count()) << " mnemos/s)";
+				//std::cout << " (" << time_span.count() << " seconds)";
+				begin = end;
+
+				time_span = duration_cast<duration<double>>(end - beginFile);
+				if (time_span.count() > 60.0) {
+					params.dumpProgress(offset);
+					beginFile = end;
+				}
+			}
+			std::cout << "\r";
 		}
 	}
 
-	if (resultCPU == uint64_t(-1))
+	std::cout << std::string(80, ' ') << std::endl;
+
+	if (resultCPU.mnemonic == uint64_t(-1))
 		return std::string();
 
-	uint32_t blockIdx = resultCPU >> 32;
-	uint32_t pos = resultCPU & 0xffffffff;
+	uint32_t posId = uint32_t(resultCPU.mnemonic % positions.size());
+	uint32_t pos = positions.at(posId);
+
+	uint64_t blockIdx = resultCPU.mnemonic / positions.size();
 
 	std::vector<std::string> words(gapSize);
 	const size_t DICTIONARY_POW = dict.sizePow();
@@ -641,19 +792,20 @@ std::string ethrecover(const Params& params)
 	std::string mnemonic;
 	const uint8_t* posArr = reinterpret_cast<uint8_t*>(&pos);
 
-	uint32_t j = 0;
-	for (size_t i = 0; i < mnemonicVector.size(); i++) {
-		while (j < gapSize && posArr[j] == i) {
+	uint32_t j = 0, k = 0;
+	for (size_t i = 0; i < params.mnemonicLength; i++) {
+		if (j < gapSize && posArr[j] == i) {
 			mnemonic.append(" " + words.at(j));
 			j++;
 		}
-		mnemonic.append(" " + mnemonicVector.at(i));
-	}
-	while (j < gapSize && posArr[j] == mnemonicVector.size()) {
-		mnemonic.append(" " + words.at(j));
-		j++;
+		else {
+			mnemonic.append(" " + mnemonicVector.at(k));
+			k++;
+		}
 	}
 	mnemonic.erase(0, 1);
+
+	mnemonic = dps.at(resultCPU.derPathIdx) + "/" + std::to_string(resultCPU.addressIdx) + ": " + mnemonic;
 
 	return mnemonic;
 }

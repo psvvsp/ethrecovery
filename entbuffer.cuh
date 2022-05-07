@@ -67,11 +67,11 @@ public:
 			m_checksum = m_buffer[entropy_bytes_size] >> (8 - checksum_bit_size);
 			m_buffer[entropy_bytes_size] = 0;
 
-			uint32_t* d = reinterpret_cast<uint32_t*>(m_buffer);
-			for (int i = 0; i < 16; i++) {
-				uint32_t dd = d[i];
-				d[i] = SWAP_4(dd);
-			}
+			//uint32_t* d = reinterpret_cast<uint32_t*>(m_buffer);
+			//for (int i = 0; i < 16; i++) {
+			//	uint32_t dd = d[i];
+			//	d[i] = SWAP_4(dd);
+			//}
 		}
 	}
 
@@ -84,7 +84,7 @@ public:
 	__device__ __host__
 	uint32_t entropyBytesSize() const
 	{
-		return SIZE;
+		return entropy_bytes_size;
 	}
 
 	__device__ __host__

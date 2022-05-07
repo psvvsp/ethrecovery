@@ -42,7 +42,8 @@ add_executable(ethrecover
     "./pbkdf2/pbkdf2.cu"
     "./pbkdf2/sha512.cu"
      "derivpathstorage.cpp"
-     "./keccak256/keccak256.cu")
+     "./keccak256/keccak256.cu"
+     "params.cpp" "addressdb.cpp" )
 
 find_package(CLI11 CONFIG REQUIRED)
 
