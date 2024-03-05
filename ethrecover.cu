@@ -23,6 +23,12 @@
 #include "inc_hash_sha512.h"
 #include "inc_ecc_secp256k1.h"
 
+//#include "inc_platform.cu"
+//#include "inc_common.cu"
+//#include "inc_hash_sha256.cu"
+//#include "inc_hash_sha512.cu"
+//#include "inc_ecc_secp256k1.cu"
+
 #include <bitset>
 #include <chrono>
 #include <fstream>
@@ -35,6 +41,7 @@
 #define MAX_POSITIONS_NUMBER 10626
 #define DERIVATION_PATH_BUFFER_COUNT 128
 #define ADDRESS_LENGTH 20
+#define THREADS_PER_BLOCK 256
 
 __constant__ uint16_t s_mnemonics[MAX_MNEMONIC_LENGTH];
 __constant__ uint32_t s_positions[MAX_POSITIONS_NUMBER];
@@ -180,6 +187,7 @@ struct Result
 };
 
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
+//__launch_bounds__(THREADS_PER_BLOCK, 3)
 __global__ void ethrecover_kernel(
 	uint64_t* mnemIds,
 	uint32_t* mnemIdsNum,
@@ -235,7 +243,7 @@ __global__ void ethrecover_kernel(
 		//	const word * saltbuffer, word * outbuffer,
 		//	unsigned int iters, unsigned int dkLen_bytes);
 
-		uint64_t result[16] = { 0 };
+		uint64_t result[8] = { 0 };
 		pbkdf2(mnemBuilder.mnemo(), mnemBuilder.mnemoSizeBytes(),
 			reinterpret_cast<const uint64_t*>(s_salt), 8, result,	2048, 64);
 
@@ -252,9 +260,9 @@ __global__ void ethrecover_kernel(
 		sha512_hmac_update_swap(&ctx512, reinterpret_cast<uint32_t*>(result), 64);
 		sha512_hmac_final(&ctx512);
 
-		uint64_t h[8];
+		__shared__ uint64_t h[THREADS_PER_BLOCK][8];
 		for (int i = 0; i < 8; i++)
-			h[i] = hc_swap64_S(ctx512.opad.h[i]);
+			h[threadIdx.x][i] = hc_swap64_S(ctx512.opad.h[i]);
 
 		//if (wordIds[0] == 1551) {
 		//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
@@ -266,15 +274,15 @@ __global__ void ethrecover_kernel(
 		for (uint32_t k = 0; current_path_index_length != 0; k++) {
 
 			uint32_t privkey_bytes[8];
-			memcpy(privkey_bytes, h, 32);
+			memcpy(privkey_bytes, h[threadIdx.x], 32);
 
-			uint32_t chaincode_bytes[32] = { 0 };
-			memcpy(chaincode_bytes, h + 4, 32);
+			uint32_t chaincode_bytes[8] = { 0 };
+			memcpy(chaincode_bytes, h[threadIdx.x] + 4, 32);
 
 			for (uint32_t i = I; i < I + current_path_index_length; i++) {
 
 				uint32_t idx = s_derivation_path_buffer[i];
-				uint32_t hmac_data[32] = { 0 };
+				uint32_t hmac_data[16] = { 0 };
 
 				if (idx < 2147483648u) {
 					private_to_public(privkey_bytes, hmac_data);
@@ -335,7 +343,7 @@ __global__ void ethrecover_kernel(
 				//}
 			}
 
-			uint32_t hmac_data[32] = { 0 };
+			uint32_t hmac_data[16] = { 0 };
 			private_to_public(privkey_bytes, hmac_data);
 
 			//if (wordIds[0] == 1551) {
@@ -625,7 +633,7 @@ std::string ethrecover(const Params& params)
 	uint32_t* mnemIdsNum = nullptr;
 	CUDA_CALL(cudaMalloc(&mnemIdsNum, sizeof(uint32_t)));
 
-	unsigned threadsPerBlock = 256;
+	unsigned threadsPerBlock = THREADS_PER_BLOCK;
 	
 	size_t mnemNum = 1;
 	for (size_t i = 0; i < gapSize; i++)

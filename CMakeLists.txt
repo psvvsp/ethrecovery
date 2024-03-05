@@ -28,6 +28,8 @@ if(MSVC)
     endforeach()
 endif(MSVC)
 
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v -maxrregcount 80")
+
 add_executable(ethrecover 
     "main.cpp"
     "posgen.cpp"
