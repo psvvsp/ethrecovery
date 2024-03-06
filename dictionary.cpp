@@ -4,15 +4,8 @@
 #include <fstream>
 #include <vector>
 
-Dictionary::Dictionary(Language language)
+Dictionary::Dictionary(const std::string& filename)
 {
-	std::string filename;
-	
-	if (language == Language::ENGLISH)
-		filename = "./wordlists/bip39-en.txt";
-	else
-		assert(false);
-
 	std::ifstream fin(filename);
 
 	for(size_t i = 0; ; i++) {

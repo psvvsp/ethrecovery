@@ -11,6 +11,7 @@ static void printParams(std::ostream& out, const Params& params)
 {
     out << "Address: " << params.address << std::endl;
     out << "Address database: " << params.addressdb << std::endl;
+    out << "Wordlist file: " << params.wordlistFile << std::endl;
     out << "Mnemonic: " << params.mnemonic << std::endl;
     out << "Mnemonic length: " << params.mnemonicLength << std::endl;
     out << "Missing positions: " << params.missingPositions << std::endl;
@@ -44,6 +45,7 @@ int main(int argc, char* argv[])
 
     app.add_option(Params::s_addressOption, params.address, "Address in the wallet")->required(false)->default_val("");
     app.add_option(Params::s_addressdbOption, params.addressdb, "Addresses database file")->required(false)->default_val("");
+    app.add_option(Params::s_wordlistFileOption, params.wordlistFile, "Wordlist file")->required(false)->default_val("./wordlists/bip39-en.txt");
     app.add_option(Params::s_mnemonicOption, params.mnemonic, "Your best guess of the mnemonic")->required(true);
     app.add_option(Params::s_mnemonicLengthOption, params.mnemonicLength, "The length of the correct mnemonic")->check(CLI::Range(12, 24))->required(true);
     app.add_option(Params::s_missingPositionsOption, params.missingPositions, "Positions of missing words in the result mnemonic")->required(false);

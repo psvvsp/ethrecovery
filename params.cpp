@@ -10,6 +10,7 @@ static std::string s_progressFilename = "progress.txt";
 
 std::string Params::s_addressOption = "--addrs";
 std::string Params::s_addressdbOption = "--addressdb";
+std::string Params::s_wordlistFileOption = "--wordlist-file";
 std::string Params::s_mnemonicOption = "--mnemonic";
 std::string Params::s_mnemonicLengthOption = "--mnemonic-length";
 std::string Params::s_missingPositionsOption = "--missing-positions";
@@ -34,6 +35,7 @@ void Params::dumpProgress(size_t skip) const
 
     fout << s_addressOption << " \"" << address << "\"" << std::endl;
     fout << s_addressdbOption << " \"" << addressdb << "\"" << std::endl;
+    fout << s_wordlistFileOption << " \"" << wordlistFile << "\"" << std::endl;
     fout << s_mnemonicOption << " \"" << mnemonic << "\"" << std::endl;
     fout << s_mnemonicLengthOption << " \"" << mnemonicLength << "\"" << std::endl;
     fout << s_missingPositionsOption << " \"" << missingPositions << "\"" << std::endl;
@@ -49,7 +51,7 @@ void Params::restoreFromFile(int &argc, char **&argv)
     if (!fin.is_open())
         return;
 
-    std::vector<std::string> args(1 + 14);
+    std::vector<std::string> args(1 + 18);
     args.at(0) = "ethrecover.exe";
 
     for (size_t i = 0; i < args.size() / 2; i++) {

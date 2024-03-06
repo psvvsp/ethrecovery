@@ -566,7 +566,7 @@ std::string ethrecover(const Params& params)
 	size_t gapSize = params.mnemonicLength - mnemonicVector.size();
 	std::set<size_t> missingPositions = parseMissingPositions(params.missingPositions, params.mnemonicLength);
 
-	Dictionary dict(params.language);
+	Dictionary dict(params.wordlistFile);
 
 	//verify_checksum(dict, mnemonicVector);
 
@@ -577,7 +577,10 @@ std::string ethrecover(const Params& params)
 	for (size_t i = 0; i < mnemonicVector.size(); i++) {
 		size_t id;
 		if (!dict.getId(id, mnemonicVector.at(i)))
+		{
+			std::cout << "\"" << mnemonicVector.at(i) << "\" is not in the wordlist" << std::endl;
 			return std::string();
+		}
 		mnemonics.at(i) = static_cast<uint16_t>(id);
 	}
 

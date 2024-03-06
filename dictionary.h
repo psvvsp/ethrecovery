@@ -9,7 +9,7 @@
 class Dictionary
 {
 public:
-	Dictionary(Language language);
+	Dictionary(const std::string &filename);
 	bool getId(size_t &id, const std::string& word) const;
 	bool getWord(size_t id, std::string& word) const;
 	size_t sizePow() const;

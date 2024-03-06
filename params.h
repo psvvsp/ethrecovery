@@ -2,16 +2,11 @@
 
 #include <string>
 
-enum class Language
-{
-    ENGLISH = 0
-};
 
 struct Params
 {
     Params()
         : mnemonicLength(0)
-        , language(Language::ENGLISH)
     {}
 
     bool validate(std::ostream& out) const;
@@ -20,9 +15,9 @@ struct Params
 
     std::string address;
     std::string addressdb;
+    std::string wordlistFile;
     std::string mnemonic;
     size_t mnemonicLength;
-    Language language;
     std::string missingPositions;
     unsigned addrsToGenerate;
     unsigned addressStartIndex;
@@ -30,6 +25,7 @@ struct Params
 
     static std::string s_addressOption;
     static std::string s_addressdbOption;
+    static std::string s_wordlistFileOption;
     static std::string s_mnemonicOption;
     static std::string s_mnemonicLengthOption;
     static std::string s_missingPositionsOption;
