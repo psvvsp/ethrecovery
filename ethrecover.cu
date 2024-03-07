@@ -29,6 +29,8 @@
 //#include "inc_hash_sha512.cu"
 //#include "inc_ecc_secp256k1.cu"
 
+#include "uni_algo/norm.h"
+
 #include <bitset>
 #include <chrono>
 #include <fstream>
@@ -562,6 +564,10 @@ std::string ethrecover(const Params& params)
 	std::vector<std::string> mnemonicVector = split(params.mnemonic);
 	if (mnemonicVector.size() >= params.mnemonicLength)
 		return params.mnemonic;
+
+	for(std::string &word : mnemonicVector)
+		word = una::norm::to_nfc_utf8(word);
+
 
 	size_t gapSize = params.mnemonicLength - mnemonicVector.size();
 	std::set<size_t> missingPositions = parseMissingPositions(params.missingPositions, params.mnemonicLength);

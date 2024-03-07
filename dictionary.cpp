@@ -1,5 +1,7 @@
 #include "dictionary.h"
 
+#include "uni_algo/norm.h"
+
 #include <cassert>
 #include <fstream>
 #include <vector>
@@ -12,7 +14,8 @@ Dictionary::Dictionary(const std::string& filename)
 		std::string word;
 		fin >> word;
 		if (!fin) break;
-		m_words.insert({ word, i });
+		std::string normalized_word = una::norm::to_nfc_utf8(word);
+		m_words.insert({ normalized_word, i });
 	}
 }
 

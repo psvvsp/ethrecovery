@@ -58,3 +58,6 @@ target_include_directories(ethrecover PRIVATE
 #set_property(TARGET ethrecover PROPERTY CUDA_ARCHITECTURES "70;75;80")
 set_property(TARGET ethrecover PROPERTY CUDA_ARCHITECTURES "61;75;86")
 set_property(TARGET ethrecover PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+
+find_package(uni-algo CONFIG REQUIRED)
+target_link_libraries(ethrecover PRIVATE uni-algo::uni-algo)
