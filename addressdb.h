@@ -6,10 +6,10 @@
 
 struct AddressDbParams
 {
-	uint64_t table_bytes;
-	uint32_t bytes_per_addr;
-	uint32_t hash_bytes;
-	uint32_t hash_mask;
+	uint64_t table_bytes = 0;
+	uint32_t bytes_per_addr = 0;
+	uint32_t hash_bytes = 0;
+	uint32_t hash_mask = 0;
 };
 
 class AddressDb
