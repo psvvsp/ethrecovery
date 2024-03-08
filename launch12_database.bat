@@ -1,0 +1,2 @@
+﻿.\out\build\x64-Release\ethrecover.exe --addressdb ".\addresses\addresses.db" --mnemonic "topic bitter resemble like father mom empower kidney average bitter glad" --mnemonic-length 12 --missing-positions "10" --addrs-to-generate 2 --address-start-index 0 --skip 0
+pause
