@@ -38,7 +38,7 @@
 #include <sstream>
 #include <vector>
 
-#define MAX_WORD_LENGTH 15
+#define MAX_WORD_LENGTH 31
 #define MAX_MNEMONIC_LENGTH 24
 #define MAX_POSITIONS_NUMBER 10626
 #define DERIVATION_PATH_BUFFER_COUNT 128
@@ -248,6 +248,13 @@ __global__ void ethrecover_kernel(
 		uint64_t result[8] = { 0 };
 		pbkdf2(mnemBuilder.mnemo(), mnemBuilder.mnemoSizeBytes(),
 			reinterpret_cast<const uint64_t*>(s_salt), 8, result,	2048, 64);
+
+		//const uint8_t* word = dictionary + (MAX_WORD_LENGTH + 1) * wordIds[0];
+		//if (word[0] == 'c' && word[1] == 'o' && word[2] == 's' && word[3] == 'm')
+		//{
+		//	printf("%s\n", word);
+		//	printBuffer(reinterpret_cast<uint8_t*>(result), 64);
+		//}
 
 		//if (mnemId == 1237) {
 		//	printf("wordIds[0] = %d, posArr[0] = %d\n", int(wordIds[0]), int(posArr[0]));
@@ -526,7 +533,7 @@ static bool verify_checksum(
 //	return candidate == buf.checkSum();
 //}
 
-static std::vector<std::string> split(const std::string str)
+static std::vector<std::string> split(const std::string &str)
 {
 	std::vector<std::string> result;
 
@@ -561,12 +568,13 @@ static std::set<size_t> parseMissingPositions(const std::string missingPositions
 
 std::string ethrecover(const Params& params)
 {
-	std::vector<std::string> mnemonicVector = split(params.mnemonic);
+	std::string normalized_mnemonic = una::norm::to_nfkd_utf8(params.mnemonic);
+	std::vector<std::string> mnemonicVector = split(normalized_mnemonic);
 	if (mnemonicVector.size() >= params.mnemonicLength)
 		return params.mnemonic;
 
 	for(std::string &word : mnemonicVector)
-		word = una::norm::to_nfc_utf8(word);
+		word = una::norm::to_nfkd_utf8(word);
 
 
 	size_t gapSize = params.mnemonicLength - mnemonicVector.size();

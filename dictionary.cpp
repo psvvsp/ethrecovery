@@ -14,7 +14,12 @@ Dictionary::Dictionary(const std::string& filename)
 		std::string word;
 		fin >> word;
 		if (!fin) break;
-		std::string normalized_word = una::norm::to_nfc_utf8(word);
+		
+		// erase unicode marker
+		if (word.size() >= 3 && word.at(0) == char(0xef) && word.at(1) == char(0xbb) && word.at(2) == char(0xbf))
+			word.erase(0, 3);
+
+		std::string normalized_word = una::norm::to_nfkd_utf8(word);
 		m_words.insert({ normalized_word, i });
 	}
 }
@@ -63,10 +68,11 @@ std::vector<uint8_t> Dictionary::get(size_t wordSizeMax) const
 		size_t id = pair.second;
 		size_t offset = id * (wordSizeMax + 1);
 		const std::string &word = pair.first;
-		assert(word.size() <= wordSizeMax);
-		for (size_t i = 0; i < word.size(); i++)
+		size_t size = word.size();
+		assert(size <= wordSizeMax);
+		for (size_t i = 0; i < size; i++)
 			dict.at(offset + i) = word.at(i);
-		for (size_t i = word.size(); i < wordSizeMax + 1; i++)
+		for (size_t i = size; i < wordSizeMax + 1; i++)
 			dict.at(offset + i) = '\0';
 	}
 
