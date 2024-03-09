@@ -1,0 +1,2 @@
+ethrecover.exe --addrs "0x019DcEb7dFD01EDF7956412705d1D1217Fbc5956" --mnemonic "ひとごみ　そぼく　ぱんち　せんねん　にんち　えんげき　きもだめし　ぐうせい　えのぐ　きくばり　しつもん"  --mnemonic-length 12 --missing-positions "11" --addrs-to-generate 2 --address-start-index 0 --skip 0 --wordlist-file "./wordlists/bip39-ja.txt"
+pause

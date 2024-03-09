@@ -9,4 +9,4 @@ target_include_directories(ethrecover PRIVATE
 
 set_property(TARGET ethrecover PROPERTY CUDA_ARCHITECTURES "61;75;86")
 
-install(TARGETS ethrecover DESTINATION bin)
+install(TARGETS ethrecover DESTINATION .)

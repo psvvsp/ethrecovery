@@ -30,8 +30,9 @@ endif(MSVC)
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v -maxrregcount 80")
 
-install(DIRECTORY data/wordlists DESTINATION data)
-install(DIRECTORY data/derivationpath-lists DESTINATION data)
-install(DIRECTORY launch_examples DESTINATION .)
+install(DIRECTORY data/wordlists DESTINATION .)
+install(DIRECTORY data/derivationpath-lists DESTINATION .)
+file(GLOB batch_files launch_examples/*.bat)
+install(FILES ${batch_files} DESTINATION .)
 
 add_subdirectory(source)

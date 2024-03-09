@@ -1,0 +1,2 @@
+ethrecover.exe --addrs "0x7D95CFFBdDaC444A62941269104B1E10Da54B9B6" --mnemonic "govern rather design option oxygen powder moral zone horse sense mansion slab ice taxi adjust urge source general hip patrol nephew impulse bunker" --mnemonic-length 24 --missing-positions "23" --addrs-to-generate 2 --address-start-index 0 --skip 0
+pause
