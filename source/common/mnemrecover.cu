@@ -25,6 +25,7 @@
 
 #include "ripemd160.h"
 #include "base58.h"
+#include "bech32.h"
 
 #include "uni_algo/norm.h"
 
@@ -642,6 +643,81 @@ static std::set<size_t> parseMissingPositions(const std::string missingPositions
 	return result;
 }
 
+static bool convertBits(const std::vector<uint8_t>& data,
+	uint32_t frombits, uint32_t tobits, std::vector<uint8_t> &result)
+{
+	uint32_t acc = 0;
+	uint32_t bits = 0;
+	uint32_t maxv = (1 << tobits) - 1;
+	uint32_t max_acc = (1 << (frombits + tobits - 1)) - 1;
+
+	for (uint8_t value : data)
+	{
+		if (value >> frombits)
+			return false;
+		acc = ((acc << frombits) | value) & max_acc;
+		bits += frombits;
+		while (bits >= tobits)
+		{
+			bits -= tobits;
+			result.push_back((acc >> bits) & maxv);
+		}
+	}
+
+	if (bits >= frombits || ((acc << (tobits - bits)) & maxv))
+		return false;
+
+	return true;
+}
+
+static bool setAddress(const Params& params, Wallet wallet)
+{
+	if (wallet == Wallet::ETHEREUM && params.address.size() == 2*ADDRESS_LENGTH_ETH)
+	{
+		std::vector<uint8_t> addressBuffer(ADDRESS_LENGTH_ETH);
+		for (size_t i = 0; i < ADDRESS_LENGTH_ETH; i++)
+		{
+			std::string byte = params.address.substr(2 * i + 2, 2);
+			addressBuffer.at(i) = std::stoi(byte, nullptr, 16);
+		}
+		CUDA_CALL(cudaMemcpyToSymbol(s_address, addressBuffer.data(), addressBuffer.size()));
+		return true;
+	}
+	else if (wallet == Wallet::BITCOIN && params.address.size() == 34)
+	{
+		std::vector<uint8_t> address;
+		if (!decodeBase58(params.address.data(), address))
+			return false;
+
+		address.erase(address.begin() + 21, address.end());
+		address.erase(address.begin());
+
+		assert(address.size() == ADDRESS_LENGTH_ETH);
+
+		CUDA_CALL(cudaMemcpyToSymbol(s_address, address.data(), address.size()));
+		return true;
+	}
+	else if (wallet == Wallet::BITCOIN && params.address.size() == 42)
+	{
+		bech32::DecodedResult decodedResult = bech32::decode(params.address);
+		if (decodedResult.encoding == bech32::Encoding::Invalid)
+			return false;
+
+		decodedResult.dp.erase(decodedResult.dp.begin());
+
+		std::vector<uint8_t> address;
+		if (!convertBits(decodedResult.dp, 5, 8, address))
+			return false;
+
+		assert(address.size() == ADDRESS_LENGTH_ETH);
+
+		CUDA_CALL(cudaMemcpyToSymbol(s_address, address.data(), address.size()));
+		return true;
+	}
+	return false;
+
+}
+
 std::string mnemrecover(const Params& params, Wallet wallet)
 {
 	std::string normalized_mnemonic = una::norm::to_nfkd_utf8(params.mnemonic);
@@ -700,30 +776,10 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 	AddressDbParams addressDbParams;
 
 	if (!params.address.empty()) {
-		
-		if (wallet == Wallet::ETHEREUM) {
-			std::vector<uint8_t> addressBuffer(ADDRESS_LENGTH_ETH);
-			for (size_t i = 0; i < ADDRESS_LENGTH_ETH; i++) {
-				std::string byte = params.address.substr(2 * i + 2, 2);
-				addressBuffer.at(i) = std::stoi(byte, nullptr, 16);
-			}
-			CUDA_CALL(cudaMemcpyToSymbol(s_address, addressBuffer.data(), addressBuffer.size()));
-		}
-		else {
-			assert(params.address.size() == ADDRESS_LENGTH_BTC);
-
-			std::vector<uint8_t> address;
-			if (!decodeBase58(params.address.data(), address)) {
-				std::cout << "Invalid address" << std::endl;
-				return std::string();
-			}
-
-			address.erase(address.begin() + 21, address.end());
-			address.erase(address.begin());
-
-			assert(address.size() == ADDRESS_LENGTH_ETH);
-
-			CUDA_CALL(cudaMemcpyToSymbol(s_address, address.data(), address.size()));
+		if (!setAddress(params, wallet))
+		{
+			std::cout << "Invalid address" << std::endl;
+			return std::string();
 		}
 	} 
 	else {

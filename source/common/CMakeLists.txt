@@ -14,14 +14,16 @@ add_library(common
      "params.cpp"
      "addressdb.cpp"
      "ripemd160/ripemd160.cu"
-     "base58/base58.cpp")
+     "base58/base58.cpp" 
+     "bech32/bech32.cpp")
 
 target_include_directories(common PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/hashcat
     ${CMAKE_CURRENT_SOURCE_DIR}/pbkdf2
     ${CMAKE_CURRENT_SOURCE_DIR}/keccak256
     ${CMAKE_CURRENT_SOURCE_DIR}/ripemd160
-    ${CMAKE_CURRENT_SOURCE_DIR}/base58)
+    ${CMAKE_CURRENT_SOURCE_DIR}/base58
+    ${CMAKE_CURRENT_SOURCE_DIR}/bech32)
 
 #set_property(TARGET ethrecover PROPERTY CUDA_ARCHITECTURES "70;75;80")
 set_property(TARGET common PROPERTY CUDA_ARCHITECTURES "61;75;86")
