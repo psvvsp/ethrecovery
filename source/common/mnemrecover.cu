@@ -1,4 +1,4 @@
-#include "ethrecover.h"
+#include "mnemrecover.h"
 
 #include "addressdb.h"
 #include "biginteger.cuh"
@@ -23,11 +23,8 @@
 #include "inc_hash_sha512.h"
 #include "inc_ecc_secp256k1.h"
 
-//#include "inc_platform.cu"
-//#include "inc_common.cu"
-//#include "inc_hash_sha256.cu"
-//#include "inc_hash_sha512.cu"
-//#include "inc_ecc_secp256k1.cu"
+#include "ripemd160.h"
+#include "base58.h"
 
 #include "uni_algo/norm.h"
 
@@ -42,19 +39,20 @@
 #define MAX_MNEMONIC_LENGTH 24
 #define MAX_POSITIONS_NUMBER 10626
 #define DERIVATION_PATH_BUFFER_COUNT 128
-#define ADDRESS_LENGTH 20
+#define ADDRESS_LENGTH_ETH 20
+#define ADDRESS_LENGTH_BTC 34
 #define THREADS_PER_BLOCK 256
 
-__constant__ uint16_t s_mnemonics[MAX_MNEMONIC_LENGTH];
+__constant__  __align__(4) uint16_t s_mnemonics[MAX_MNEMONIC_LENGTH];
 __constant__ uint32_t s_positions[MAX_POSITIONS_NUMBER];
-__constant__ uint8_t s_salt[8] = { 'm', 'n', 'e', 'm', 'o', 'n', 'i', 'c' };
-__constant__ uint8_t s_seed[128] = { 'B', 'i', 't', 'c', 'o', 'i', 'n', ' ', 's', 'e', 'e', 'd'};
+__constant__  __align__(4) uint8_t s_salt[8] = { 'm', 'n', 'e', 'm', 'o', 'n', 'i', 'c' };
+__constant__  __align__(4) uint8_t s_seed[128] = { 'B', 'i', 't', 'c', 'o', 'i', 'n', ' ', 's', 'e', 'e', 'd'};
 __constant__ secp256k1_t s_basepoint;
 __constant__ uint32_t s_derivation_path_buffer[DERIVATION_PATH_BUFFER_COUNT];
 __constant__ uint32_t s_generator_order[8] = {
 	0xffffffff, 0xffffffff, 0xffffffff, 0xfffffffe, 0xbaaedce6, 0xaf48a03b, 0xbfd25e8c, 0xd0364141
 };
-__constant__ uint8_t s_address[ADDRESS_LENGTH];
+__constant__ __align__(4) uint8_t s_address[ADDRESS_LENGTH_BTC];
 
 __host__ __device__ void printBuffer(const uint8_t* buffer, uint32_t size)
 {
@@ -191,6 +189,7 @@ struct Result
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
 //__launch_bounds__(THREADS_PER_BLOCK, 3)
 __global__ void ethrecover_kernel(
+	Wallet wallet,
 	uint64_t* mnemIds,
 	uint32_t* mnemIdsNum,
 	uint32_t mnemonicNumber,
@@ -250,7 +249,7 @@ __global__ void ethrecover_kernel(
 			reinterpret_cast<const uint64_t*>(s_salt), 8, result,	2048, 64);
 
 		//const uint8_t* word = dictionary + (MAX_WORD_LENGTH + 1) * wordIds[0];
-		//if (word[0] == 'c' && word[1] == 'o' && word[2] == 's' && word[3] == 'm')
+		//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
 		//{
 		//	printf("%s\n", word);
 		//	printBuffer(reinterpret_cast<uint8_t*>(result), 64);
@@ -273,6 +272,12 @@ __global__ void ethrecover_kernel(
 		for (int i = 0; i < 8; i++)
 			h[threadIdx.x][i] = hc_swap64_S(ctx512.opad.h[i]);
 
+		//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
+		//{
+		//	printf("h = ");
+		//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
+		//}
+		
 		//if (wordIds[0] == 1551) {
 		//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
 		//}
@@ -302,6 +307,11 @@ __global__ void ethrecover_kernel(
 				uint32_t tmp = hc_swap32_S(idx);
 				memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 33, &tmp, 4);
 
+				//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
+				//{
+				//	printf("%u, hmac_data = \n", idx);
+				//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 37);
+				//}
 				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
 				//	printf("%u, hmac_data = \n", idx);
 				//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 37);
@@ -352,6 +362,15 @@ __global__ void ethrecover_kernel(
 				//}
 			}
 
+			//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
+			//{
+			//	printf("privkey_bytes = ");
+			//	printBuffer(reinterpret_cast<uint8_t*>(privkey_bytes), 32);
+
+			//	printf("chaincode_bytes = ");
+			//	printBuffer(reinterpret_cast<uint8_t*>(chaincode_bytes), 32);
+			//}
+
 			uint32_t hmac_data[16] = { 0 };
 			private_to_public(privkey_bytes, hmac_data);
 
@@ -365,7 +384,7 @@ __global__ void ethrecover_kernel(
 
 			BigInteger<8> privkey_int(privkey_bytes);
 
-			for (uint32_t j = addressStartIndex; j < addrsToGenerate; j++) {
+			for (uint32_t j = addressStartIndex; j < addressStartIndex + addrsToGenerate; j++) {
 
 				uint32_t tmp = hc_swap32_S(j);
 				memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 33, &tmp, 4);
@@ -398,47 +417,104 @@ __global__ void ethrecover_kernel(
 				for (int i = 0; i < 8; i++)
 					d_privkey_bytes[i] = hc_swap32_S(d_privkey_bytes[i]);
 
+				//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
+				//{
+				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
+				//	printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
+				//}
+
 				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
 				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
 				//	printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
 				//}
 
-				uint32_t d_pubkey[32] = { 0 };
+				uint32_t d_pubkey[16] = { 0 };
 				private_to_public_full(d_privkey_bytes, d_pubkey);
+
+
+				//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
+				//{
+				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
+				//	printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
+				//}
 
 				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
 				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
 				//	printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
 				//}
 
-				uint32_t r[8];
-				keccak256(r, d_pubkey, 64);
-
 				bool equal = true;
 
-				const uint32_t* addressWords = reinterpret_cast<uint32_t*>(s_address);
-				//const uint32_t* addressWordsTest = reinterpret_cast<uint32_t*>(d_ctx512.h) + 11;
-				const uint32_t* addressWordsTest = r + 3;
+				if (wallet == Wallet::ETHEREUM)
+				{
+					uint32_t r[8];
+					keccak256(r, d_pubkey, 64);
 
-				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWords = \n");
-				//	printBuffer(reinterpret_cast<const uint8_t *>(addressWords), 20);
+					const uint32_t* addressWords = reinterpret_cast<uint32_t*>(s_address);
+					//const uint32_t* addressWordsTest = reinterpret_cast<uint32_t*>(d_ctx512.h) + 11;
+					const uint32_t* addressWordsTest = r + 3;
 
-				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWordsTest = \n");
-				//	printBuffer(reinterpret_cast<const uint8_t*>(addressWordsTest), 20);
+					//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWords = \n");
+					//	printBuffer(reinterpret_cast<const uint8_t *>(addressWords), 20);
 
-				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX r = \n");
-				//	printBuffer(reinterpret_cast<const uint8_t*>(r), 32);
-				//}
+					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWordsTest = \n");
+					//	printBuffer(reinterpret_cast<const uint8_t*>(addressWordsTest), 20);
 
-				if (!addressDb) {
-					for (int i = 0; i < 5; i++)
-						if (addressWords[i] != addressWordsTest[i])
-							equal = false;
+					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX r = \n");
+					//	printBuffer(reinterpret_cast<const uint8_t*>(r), 32);
+					//}
+
+					if (!addressDb) {
+						for (int i = 0; i < 5; i++)
+							if (addressWords[i] != addressWordsTest[i])
+								equal = false;
+					}
+					else {
+						//printf("XXX");
+						equal = findInDatabase(reinterpret_cast<const uint8_t*>(addressWordsTest), addressDb, addressDbParams);
+					}
 				}
-				else {
-					//printf("XXX");
-					equal = findInDatabase(reinterpret_cast<const uint8_t*>(addressWordsTest), addressDb, addressDbParams);
+				else if (wallet == Wallet::BITCOIN)
+				{
+					uint32_t compressed_pubkey[16] = { 0 };
+					reinterpret_cast<uint8_t*>(compressed_pubkey)[0] = reinterpret_cast<uint8_t*>(d_pubkey)[63] & 0x01 + 2;
+					memcpy(reinterpret_cast<uint8_t*>(compressed_pubkey) + 1, d_pubkey, 32);
+
+					sha256_ctx_t sha256_ctx;
+					sha256_init(&sha256_ctx);
+					sha256_update_swap(&sha256_ctx, compressed_pubkey, 33);
+					sha256_final(&sha256_ctx);
+
+					uint32_t hh[8];
+					for (int i = 0; i < 8; i++)
+						hh[i] = hc_swap32_S(sha256_ctx.h[i]);
+
+					uint32_t ripe_digest[5];
+					ripemd160(reinterpret_cast<uint8_t*>(hh), 32, reinterpret_cast<uint8_t *>(ripe_digest));
+
+					//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
+					//{
+					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX compressed_pubkey = \n");
+					//	printBuffer(reinterpret_cast<uint8_t*>(compressed_pubkey), 33);
+
+					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX hh = \n");
+					//	printBuffer(reinterpret_cast<uint8_t*>(hh), 32);
+
+					//	printf("\n ripe_digest = \n");
+					//	printBuffer(reinterpret_cast<uint8_t*>(ripe_digest), 20);
+					//}
+
+					if (!addressDb) {
+						const uint32_t* addressWords = reinterpret_cast<uint32_t*>(s_address);
+						for (int i = 0; i < 5; i++)
+							if (addressWords[i] != ripe_digest[i])
+								equal = false;
+					}
+					else {
+						equal = findInDatabase(reinterpret_cast<const uint8_t*>(ripe_digest), addressDb, addressDbParams);
+					}
+
 				}
 
 				if (equal) {
@@ -566,7 +642,7 @@ static std::set<size_t> parseMissingPositions(const std::string missingPositions
 	return result;
 }
 
-std::string ethrecover(const Params& params)
+std::string mnemrecover(const Params& params, Wallet wallet)
 {
 	std::string normalized_mnemonic = una::norm::to_nfkd_utf8(params.mnemonic);
 	std::vector<std::string> mnemonicVector = split(normalized_mnemonic);
@@ -615,7 +691,7 @@ std::string ethrecover(const Params& params)
 	set_precomputed_basepoint_g(&basepoint);
 	CUDA_CALL(cudaMemcpyToSymbol(s_basepoint, &basepoint, sizeof(basepoint)));
 
-	DerivationPathStorage dps;
+	DerivationPathStorage dps(wallet);
 	std::vector<uint32_t> derivationPathBuffer = dps.get(DERIVATION_PATH_BUFFER_COUNT);
 	derivationPathBuffer.resize(DERIVATION_PATH_BUFFER_COUNT, 0);
 	CUDA_CALL(cudaMemcpyToSymbol(s_derivation_path_buffer, derivationPathBuffer.data(), derivationPathBuffer.size()*sizeof(uint32_t)));
@@ -625,12 +701,30 @@ std::string ethrecover(const Params& params)
 
 	if (!params.address.empty()) {
 		
-		std::vector<uint8_t> addressBuffer(ADDRESS_LENGTH);
-		for (size_t i = 0; i < ADDRESS_LENGTH; i++) {
-			std::string byte = params.address.substr(2 * i + 2, 2);
-			addressBuffer.at(i) = std::stoi(byte, nullptr, 16);
+		if (wallet == Wallet::ETHEREUM) {
+			std::vector<uint8_t> addressBuffer(ADDRESS_LENGTH_ETH);
+			for (size_t i = 0; i < ADDRESS_LENGTH_ETH; i++) {
+				std::string byte = params.address.substr(2 * i + 2, 2);
+				addressBuffer.at(i) = std::stoi(byte, nullptr, 16);
+			}
+			CUDA_CALL(cudaMemcpyToSymbol(s_address, addressBuffer.data(), addressBuffer.size()));
 		}
-		CUDA_CALL(cudaMemcpyToSymbol(s_address, addressBuffer.data(), addressBuffer.size()));
+		else {
+			assert(params.address.size() == ADDRESS_LENGTH_BTC);
+
+			std::vector<uint8_t> address;
+			if (!decodeBase58(params.address.data(), address)) {
+				std::cout << "Invalid address" << std::endl;
+				return std::string();
+			}
+
+			address.erase(address.begin() + 21, address.end());
+			address.erase(address.begin());
+
+			assert(address.size() == ADDRESS_LENGTH_ETH);
+
+			CUDA_CALL(cudaMemcpyToSymbol(s_address, address.data(), address.size()));
+		}
 	} 
 	else {
 		AddressDb addressDb(params.addressdb);
@@ -722,6 +816,7 @@ std::string ethrecover(const Params& params)
 			if (dict.sizePow() == 11 && params.mnemonicLength == 12) {
 
 				//__global__ void ethrecover_kernel(
+				//  Wallet wallet,
 				//	uint64_t * mnemIds,
 				//	uint32_t * mnemIdsNum,
 				//	uint32_t mnemonicNumber,
@@ -735,6 +830,7 @@ std::string ethrecover(const Params& params)
 				//	)
 
 				ethrecover_kernel<11, 12> << <blocksPerGrid, threadsPerBlock >> > (
+					wallet,
 					mnemIds,
 					mnemIdsNum,
 					static_cast<uint32_t>(mnemonics.size()),
@@ -749,6 +845,7 @@ std::string ethrecover(const Params& params)
 			else if (dict.sizePow() == 11 && params.mnemonicLength == 24) {
 
 				ethrecover_kernel<11, 24> << <blocksPerGrid, threadsPerBlock >> > (
+					wallet,
 					mnemIds,
 					mnemIdsNum,
 					static_cast<uint32_t>(mnemonics.size()),

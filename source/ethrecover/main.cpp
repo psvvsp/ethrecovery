@@ -1,4 +1,4 @@
-#include "ethrecover.h"
+#include "mnemrecover.h"
 
 #include "CLI/CLI.hpp"
 
@@ -74,7 +74,7 @@ int main(int argc, char* argv[])
 
     params.dumpProgress(params.skip);
 
-    std::string mnemonic = ethrecover(params);
+    std::string mnemonic = mnemrecover(params, Wallet::ETHEREUM);
 
     printResult(std::cout, mnemonic);
 

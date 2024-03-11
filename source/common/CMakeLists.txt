@@ -1,6 +1,6 @@
 add_library(common
     "posgen.cpp"
-    "ethrecover.cu"
+    "mnemrecover.cu"
     "dictionary.cpp"
     "./sha256/SHA256.cpp"
     "./hashcat/inc_common.cu"
@@ -11,12 +11,17 @@ add_library(common
     "./pbkdf2/sha512.cu"
      "derivpathstorage.cpp"
      "./keccak256/keccak256.cu"
-     "params.cpp" "addressdb.cpp" )
+     "params.cpp"
+     "addressdb.cpp"
+     "ripemd160/ripemd160.cu"
+     "base58/base58.cpp")
 
 target_include_directories(common PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/hashcat
     ${CMAKE_CURRENT_SOURCE_DIR}/pbkdf2
-    ${CMAKE_CURRENT_SOURCE_DIR}/keccak256)
+    ${CMAKE_CURRENT_SOURCE_DIR}/keccak256
+    ${CMAKE_CURRENT_SOURCE_DIR}/ripemd160
+    ${CMAKE_CURRENT_SOURCE_DIR}/base58)
 
 #set_property(TARGET ethrecover PROPERTY CUDA_ARCHITECTURES "70;75;80")
 set_property(TARGET common PROPERTY CUDA_ARCHITECTURES "61;75;86")

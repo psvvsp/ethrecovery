@@ -3,10 +3,27 @@
 #include <algorithm>
 #include <cassert>
 #include <fstream>
+#include <iostream>
 
-DerivationPathStorage::DerivationPathStorage()
+DerivationPathStorage::DerivationPathStorage(Wallet wallet)
 {
-	std::ifstream fin("./derivationpath-lists/ETH.txt");
+	std::string filename;
+	if (wallet == Wallet::BITCOIN)
+		filename = "BTC.txt";
+	else if (wallet == Wallet::ETHEREUM)
+		filename = "ETH.txt";
+	else
+		assert(false);
+
+	std::ifstream fin;
+	fin.open("./derivationpath-lists/" + filename);
+
+	if (!fin.is_open())
+	{
+		fin.open("./data/derivationpath-lists/" + filename);
+		if (!fin.is_open())
+			std::cout << "Failed to open derivation path lists file" << std::endl;
+	}
 
 	std::string line;
 

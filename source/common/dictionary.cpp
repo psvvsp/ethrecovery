@@ -4,11 +4,15 @@
 
 #include <cassert>
 #include <fstream>
+#include <iostream>
 #include <vector>
 
 Dictionary::Dictionary(const std::string& filename)
 {
 	std::ifstream fin(filename);
+
+	if (!fin.is_open())
+		std::cout << "Failed to open wordlist file" << std::endl;
 
 	for(size_t i = 0; ; i++) {
 		std::string word;

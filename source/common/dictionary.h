@@ -1,7 +1,5 @@
 #pragma once
 
-#include "ethrecover.h"
-
 #include <map>
 #include <string>
 #include <vector>
