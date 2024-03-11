@@ -1,0 +1,4 @@
+btcrecover.exe --addrs "157i95UhvgbpmkPapfCVHEDcFP9fXVLopZ" --wordlist-file ".\wordlists\bip39-en.txt" --mnemonic "dentist nephew slide hamster cloud produce connect garage shoe you frozen guitar obey gas better obvious pistol vocal security author negative emotion table" --mnemonic-length "24" --missing-positions "0" --addrs-to-generate "2" --address-start-index "0"
+btcrecover.exe --addrs "bc1qgy726jjesgdgjl4624cadn7sv3kxjymhz7cv7e" --wordlist-file ".\wordlists\bip39-en.txt" --mnemonic "dentist nephew slide hamster cloud produce connect garage shoe you frozen guitar obey gas better obvious pistol vocal security author negative emotion table" --mnemonic-length "24" --missing-positions "0" --addrs-to-generate "2" --address-start-index "0"
+
+pause

@@ -1,3 +1,5 @@
 btcrecover.exe --addrs "1ME3Wanc1tspSfd6WriLaYSW7yaY2DYY87" --wordlist-file ".\wordlists\bip39-fr.txt" --mnemonic "sécher obstacle dompter abyssal cadeau plaque ligature ruelle étagère payer imputer" --mnemonic-length "12" --missing-positions "11" --addrs-to-generate "2" --address-start-index "0"
+btcrecover.exe --addrs "13cMPJhhyENYp7xgUnpKq5H8Da14kCXaVV" --wordlist-file ".\wordlists\bip39-en.txt" --mnemonic "minor thumb category alien forget fiscal neutral budget plate vague account" --mnemonic-length "12" --missing-positions "0" --addrs-to-generate "2" --address-start-index "0"
+btcrecover.exe --addrs "bc1q2e4g7qduw3ac6zcwf9pzhqlza5e7gsyy9mxsp3" --wordlist-file ".\wordlists\bip39-en.txt" --mnemonic "minor thumb category alien forget fiscal neutral budget plate vague account" --mnemonic-length "12" --missing-positions "0" --addrs-to-generate "2" --address-start-index "0"
 
 pause
