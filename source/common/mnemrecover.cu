@@ -248,12 +248,12 @@ __global__ void ethrecover_kernel(
 		pbkdf2(mnemBuilder.mnemo(), mnemBuilder.mnemoSizeBytes(),
 			reinterpret_cast<const uint64_t*>(s_salt), 8, result,	2048, 64);
 
-		//const uint8_t* word = dictionary + (MAX_WORD_LENGTH + 1) * wordIds[0];
-		//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
-		//{
-		//	printf("%s\n", word);
-		//	printBuffer(reinterpret_cast<uint8_t*>(result), 64);
-		//}
+		const uint8_t* word = dictionary + (MAX_WORD_LENGTH + 1) * wordIds[0];
+		if (word[0] == 'g' && word[1] == 'u' && word[2] == 'a' && word[3] == 'r')
+		{
+			printf("%s\n", word);
+			printBuffer(reinterpret_cast<uint8_t*>(result), 64);
+		}
 
 		//if (mnemId == 1237) {
 		//	printf("wordIds[0] = %d, posArr[0] = %d\n", int(wordIds[0]), int(posArr[0]));
@@ -272,11 +272,11 @@ __global__ void ethrecover_kernel(
 		for (int i = 0; i < 8; i++)
 			h[threadIdx.x][i] = hc_swap64_S(ctx512.opad.h[i]);
 
-		//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
-		//{
-		//	printf("h = ");
-		//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
-		//}
+		if (word[0] == 'g' && word[1] == 'u' && word[2] == 'a' && word[3] == 'r')
+		{
+			printf("h = ");
+			printBuffer(reinterpret_cast<uint8_t*>(h), 64);
+		}
 		
 		//if (wordIds[0] == 1551) {
 		//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
@@ -307,11 +307,11 @@ __global__ void ethrecover_kernel(
 				uint32_t tmp = hc_swap32_S(idx);
 				memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 33, &tmp, 4);
 
-				//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
-				//{
-				//	printf("%u, hmac_data = \n", idx);
-				//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 37);
-				//}
+				if (word[0] == 'g' && word[1] == 'u' && word[2] == 'a' && word[3] == 'r')
+				{
+					printf("%u, hmac_data = \n", idx);
+					printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 37);
+				}
 				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
 				//	printf("%u, hmac_data = \n", idx);
 				//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 37);
@@ -362,14 +362,14 @@ __global__ void ethrecover_kernel(
 				//}
 			}
 
-			//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
-			//{
-			//	printf("privkey_bytes = ");
-			//	printBuffer(reinterpret_cast<uint8_t*>(privkey_bytes), 32);
+			if (word[0] == 'g' && word[1] == 'u' && word[2] == 'a' && word[3] == 'r')
+			{
+				printf("privkey_bytes = ");
+				printBuffer(reinterpret_cast<uint8_t*>(privkey_bytes), 32);
 
-			//	printf("chaincode_bytes = ");
-			//	printBuffer(reinterpret_cast<uint8_t*>(chaincode_bytes), 32);
-			//}
+				printf("chaincode_bytes = ");
+				printBuffer(reinterpret_cast<uint8_t*>(chaincode_bytes), 32);
+			}
 
 			uint32_t hmac_data[16] = { 0 };
 			private_to_public(privkey_bytes, hmac_data);
@@ -417,11 +417,11 @@ __global__ void ethrecover_kernel(
 				for (int i = 0; i < 8; i++)
 					d_privkey_bytes[i] = hc_swap32_S(d_privkey_bytes[i]);
 
-				//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
-				//{
-				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
-				//	printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
-				//}
+				if (word[0] == 'g' && word[1] == 'u' && word[2] == 'a' && word[3] == 'r')
+				{
+					printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
+					printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
+				}
 
 				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
 				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
@@ -432,11 +432,11 @@ __global__ void ethrecover_kernel(
 				private_to_public_full(d_privkey_bytes, d_pubkey);
 
 
-				//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
-				//{
-				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
-				//	printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
-				//}
+				if (word[0] == 'g' && word[1] == 'u' && word[2] == 'a' && word[3] == 'r')
+				{
+					printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
+					printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
+				}
 
 				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
 				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
@@ -478,7 +478,7 @@ __global__ void ethrecover_kernel(
 				else if (wallet == Wallet::BITCOIN)
 				{
 					uint32_t compressed_pubkey[16] = { 0 };
-					reinterpret_cast<uint8_t*>(compressed_pubkey)[0] = reinterpret_cast<uint8_t*>(d_pubkey)[63] & 0x01 + 2;
+					reinterpret_cast<uint8_t*>(compressed_pubkey)[0] = (reinterpret_cast<uint8_t*>(d_pubkey)[63] & 0x01) + 2;
 					memcpy(reinterpret_cast<uint8_t*>(compressed_pubkey) + 1, d_pubkey, 32);
 
 					sha256_ctx_t sha256_ctx;
@@ -493,17 +493,17 @@ __global__ void ethrecover_kernel(
 					uint32_t ripe_digest[5];
 					ripemd160(reinterpret_cast<uint8_t*>(hh), 32, reinterpret_cast<uint8_t *>(ripe_digest));
 
-					//if (word[0] == 's' && word[1] == 'a' && word[2] == 'f' && word[3] == 'a')
-					//{
-					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX compressed_pubkey = \n");
-					//	printBuffer(reinterpret_cast<uint8_t*>(compressed_pubkey), 33);
+					if (word[0] == 'g' && word[1] == 'u' && word[2] == 'a' && word[3] == 'r')
+					{
+						printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX compressed_pubkey = \n");
+						printBuffer(reinterpret_cast<uint8_t*>(compressed_pubkey), 33);
 
-					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX hh = \n");
-					//	printBuffer(reinterpret_cast<uint8_t*>(hh), 32);
+						printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX hh = \n");
+						printBuffer(reinterpret_cast<uint8_t*>(hh), 32);
 
-					//	printf("\n ripe_digest = \n");
-					//	printBuffer(reinterpret_cast<uint8_t*>(ripe_digest), 20);
-					//}
+						printf("\n ripe_digest = \n");
+						printBuffer(reinterpret_cast<uint8_t*>(ripe_digest), 20);
+					}
 
 					if (!addressDb) {
 						const uint32_t* addressWords = reinterpret_cast<uint32_t*>(s_address);
