@@ -249,7 +249,7 @@ __global__ void ethrecover_kernel(
 		pbkdf2(mnemBuilder.mnemo(), mnemBuilder.mnemoSizeBytes(),
 			reinterpret_cast<const uint64_t*>(s_salt), 8, result,	2048, 64);
 
-		const uint8_t* word = dictionary + (MAX_WORD_LENGTH + 1) * wordIds[0];
+		//const uint8_t* word = dictionary + (MAX_WORD_LENGTH + 1) * wordIds[0];
 		//if (word[0] == 'g' && word[1] == 'u' && word[2] == 'a' && word[3] == 'r')
 		//{
 		//	printf("%s\n", word);
@@ -487,12 +487,11 @@ __global__ void ethrecover_kernel(
 					sha256_update_swap(&sha256_ctx, compressed_pubkey, 33);
 					sha256_final(&sha256_ctx);
 
-					uint32_t hh[8];
 					for (int i = 0; i < 8; i++)
-						hh[i] = hc_swap32_S(sha256_ctx.h[i]);
+						sha256_ctx.h[i] = hc_swap32_S(sha256_ctx.h[i]);
 
 					uint32_t ripe_digest[5];
-					ripemd160(reinterpret_cast<uint8_t*>(hh), 32, reinterpret_cast<uint8_t *>(ripe_digest));
+					ripemd160(reinterpret_cast<uint8_t*>(sha256_ctx.h), 32, reinterpret_cast<uint8_t *>(ripe_digest));
 
 					//if (word[0] == 'g' && word[1] == 'u' && word[2] == 'a' && word[3] == 'r')
 					//{
@@ -683,7 +682,7 @@ static bool setAddress(const Params& params, Wallet wallet)
 		CUDA_CALL(cudaMemcpyToSymbol(s_address, addressBuffer.data(), addressBuffer.size()));
 		return true;
 	}
-	else if (wallet == Wallet::BITCOIN && params.address.size() == 34)
+	else if (wallet == Wallet::BITCOIN && (params.address.size() == 33 || params.address.size() == 34))
 	{
 		std::vector<uint8_t> address;
 		if (!decodeBase58(params.address.data(), address))
@@ -868,6 +867,11 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 		CUDA_CALL(cudaDeviceSynchronize());
 
 		if (((launch > 0) && (launch % 16 == 0)) || launch == numLaunches - 1) {
+
+			//uint32_t mnemIdsNumHost;
+			//CUDA_CALL(cudaMemcpy(&mnemIdsNumHost, mnemIdsNum, sizeof(uint32_t), cudaMemcpyDeviceToHost));
+			//std::cout << "mnemIdsNum = " << mnemIdsNumHost << std::endl;
+
 
 			if (dict.sizePow() == 11 && params.mnemonicLength == 12) {
 
