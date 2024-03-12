@@ -672,7 +672,7 @@ static bool convertBits(const std::vector<uint8_t>& data,
 
 static bool setAddress(const Params& params, Wallet wallet)
 {
-	if (wallet == Wallet::ETHEREUM && params.address.size() == 2*ADDRESS_LENGTH_ETH)
+	if (wallet == Wallet::ETHEREUM && params.address.size() == 2*ADDRESS_LENGTH_ETH + 2)
 	{
 		std::vector<uint8_t> addressBuffer(ADDRESS_LENGTH_ETH);
 		for (size_t i = 0; i < ADDRESS_LENGTH_ETH; i++)
