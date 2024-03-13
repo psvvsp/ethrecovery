@@ -39,6 +39,8 @@ bool Params::validate(std::ostream &out) const
 
 void Params::print(std::ostream& out) const
 {
+    out << std::endl;
+
     out << "Address: " << address << std::endl;
     out << "Address database: " << addressdb << std::endl;
     out << "Wordlist file: " << wordlistFile << std::endl;

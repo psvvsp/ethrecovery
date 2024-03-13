@@ -56,7 +56,8 @@ int main(int argc, char* argv[])
         if (retcode != EXIT_SUCCESS)
         {
             failed++;
-            fout << testId << ". failed: " << command << std::endl;
+            fout << std::endl;
+            fout << testId << " failed: " << command << std::endl;
             fout << "\tcommand return code: " << retcode << std::endl;
         }
         else
@@ -67,13 +68,15 @@ int main(int argc, char* argv[])
             if (!buffer.str().find("Result:"))
             {
                 failed++;
-                fout << testId << ". failed: " << command << std::endl;
+                fout << std::endl;
+                fout << testId << " failed: " << command << std::endl;
                 fout << "\tcommand output:\n" << buffer.str() << std::endl;
             }
             else
             {
                 passed++;
-                fout << testId << ". passed: " << command << std::endl;
+                fout << std::endl;
+                fout << testId << " passed: " << command << std::endl;
             }
         }
 
@@ -81,6 +84,7 @@ int main(int argc, char* argv[])
         testId++;
     }
 
+    fout << std::endl;
     fout << "====================================================" << std::endl;
     fout << passed << " tests passed, " << failed << " tests failed" << std::endl;
 
