@@ -36,7 +36,7 @@
 #include <sstream>
 #include <vector>
 
-#define MAX_WORD_LENGTH 31
+#define MAX_WORD_LENGTH 33
 #define MAX_MNEMONIC_LENGTH 24
 #define MAX_POSITIONS_NUMBER 10626
 #define DERIVATION_PATH_BUFFER_COUNT 128
