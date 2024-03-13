@@ -1,5 +1,6 @@
 #include "params.h"
-#include "params.h"
+
+#include "utils.h"
 
 #include <fstream>
 #include <string>
@@ -17,6 +18,7 @@ std::string Params::s_missingPositionsOption = "--missing-positions";
 std::string Params::s_addrsToGenerateOption = "--addrs-to-generate";
 std::string Params::s_addressStartIndexOption = "--address-start-index";
 std::string Params::s_skipOption = "--skip";
+std::string Params::s_cudaDeviceOption = "--cuda-device";
 
 
 bool Params::validate(std::ostream &out) const
@@ -26,7 +28,51 @@ bool Params::validate(std::ostream &out) const
         return false;
     }
 
+    if (cudaSetDevice(cudaDevice) != cudaError_t::cudaSuccess) {
+        out << "Failed to set cuda device " << cudaDevice << ". "
+            << "See help for the list of CUDA devices. " << std::endl;
+        return false;
+    }
+
     return true;
+}
+
+void Params::print(std::ostream& out) const
+{
+    out << "Address: " << address << std::endl;
+    out << "Address database: " << addressdb << std::endl;
+    out << "Wordlist file: " << wordlistFile << std::endl;
+    out << "Mnemonic: " << mnemonic << std::endl;
+    out << "Mnemonic length: " << mnemonicLength << std::endl;
+    out << "Missing positions: " << missingPositions << std::endl;
+    out << "Addresses to generate: " << addrsToGenerate << std::endl;
+    out << "Address start index: " << addressStartIndex << std::endl;
+    out << "Skip: " << skip << std::endl;
+    out << "CUDA device id: " << cudaDevice << " ";
+
+    cudaDeviceProp deviceProps;
+    if (cudaGetDeviceProperties(&deviceProps, cudaDevice) == cudaError_t::cudaSuccess)
+    {
+        out << "(" << deviceProps.name << ")";
+    }
+    
+    out << std::endl;
+    out << std::endl;
+}
+
+void Params::printCudaDevices(std::ostream& out) const
+{
+    out << "Available CUDA devices:" << std::endl;
+
+    int deviceCount;
+    CUDA_CALL(cudaGetDeviceCount(&deviceCount));
+
+    cudaDeviceProp deviceProps;
+    for (int deviceId = 0; deviceId < deviceCount; deviceId++)
+    {
+        CUDA_CALL(cudaGetDeviceProperties(&deviceProps, deviceId));
+        out << deviceId << " : " << deviceProps.name << std::endl;
+    }
 }
 
 void Params::dumpProgress(size_t skip) const
@@ -42,6 +88,7 @@ void Params::dumpProgress(size_t skip) const
     fout << s_addrsToGenerateOption << " \"" << addrsToGenerate << "\"" << std::endl;
     fout << s_addressStartIndexOption << " \"" << addressStartIndex << "\"" << std::endl;
     fout << s_skipOption << " \"" << skip << "\"" << std::endl;
+    fout << s_cudaDeviceOption << " \"" << cudaDevice << "\"" << std::endl;
 }
 
 void Params::restoreFromFile(int &argc, char **&argv)
@@ -51,7 +98,7 @@ void Params::restoreFromFile(int &argc, char **&argv)
     if (!fin.is_open())
         return;
 
-    std::vector<std::string> args(1 + 18);
+    std::vector<std::string> args(1 + 20);
     args.at(0) = "ethrecover.exe";
 
     for (size_t i = 0; i < args.size() / 2; i++) {

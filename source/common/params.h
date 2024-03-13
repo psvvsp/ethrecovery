@@ -10,6 +10,9 @@ struct Params
     {}
 
     bool validate(std::ostream& out) const;
+    void print(std::ostream& out) const;
+    void printCudaDevices(std::ostream& out) const;
+
     void dumpProgress(size_t skip) const;
     void restoreFromFile(int& argc, char**& argv);
 
@@ -22,6 +25,7 @@ struct Params
     unsigned addrsToGenerate;
     unsigned addressStartIndex;
     size_t skip;
+    int cudaDevice;
 
     static std::string s_addressOption;
     static std::string s_addressdbOption;
@@ -32,4 +36,5 @@ struct Params
     static std::string s_addrsToGenerateOption;
     static std::string s_addressStartIndexOption;
     static std::string s_skipOption;
+    static std::string s_cudaDeviceOption;
 };
