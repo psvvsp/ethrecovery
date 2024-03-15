@@ -1,0 +1,2 @@
+btcrecover.exe --addrs "1JXHDJChzUpFthPufcKJFMu45uB7Byfww7" --wordlist-file ".\\wordlists\\bip39-en.txt" --mnemonic-file ".\\mnemonics.txt"
+pause

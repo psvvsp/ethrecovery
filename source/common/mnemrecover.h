@@ -2,6 +2,8 @@
 
 #include "params.h"
 
+#include <iostream>
+
 enum class Wallet
 {
 	BITCOIN,
@@ -10,3 +12,5 @@ enum class Wallet
 
 
 std::string mnemrecover(const Params& params, Wallet wallet);
+
+std::string mnemrecover_stream(std::istream &in, const Params& params, Wallet wallet);

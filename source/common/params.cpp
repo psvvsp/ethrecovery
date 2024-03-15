@@ -19,12 +19,19 @@ std::string Params::s_addrsToGenerateOption = "--addrs-to-generate";
 std::string Params::s_addressStartIndexOption = "--address-start-index";
 std::string Params::s_skipOption = "--skip";
 std::string Params::s_cudaDeviceOption = "--cuda-device";
+std::string Params::s_mnemonicFileOption = "--mnemonic-file";
+std::string Params::s_mnemonicStdinFlag = "--mnemonic-stdin";
 
 
 bool Params::validate(std::ostream &out) const
 {
     if (address.empty() && addressdb.empty()) {
         out << "Both address and address database options are not specified" << std::endl;
+        return false;
+    }
+
+    if (!mnemonicFile.empty() && mnemonicStdin) {
+        out << "Both mnemonic file and mnemonic stdin are specified" << std::endl;
         return false;
     }
 
@@ -50,6 +57,8 @@ void Params::print(std::ostream& out) const
     out << "Addresses to generate: " << addrsToGenerate << std::endl;
     out << "Address start index: " << addressStartIndex << std::endl;
     out << "Skip: " << skip << std::endl;
+    out << "Mnemonic file: " << mnemonicFile << std::endl;
+    out << "Mnemonic stdin: " << mnemonicStdin << std::endl;
     out << "CUDA device id: " << cudaDevice << " ";
 
     cudaDeviceProp deviceProps;
@@ -91,6 +100,8 @@ void Params::dumpProgress(size_t skip) const
     fout << s_addressStartIndexOption << " \"" << addressStartIndex << "\"" << std::endl;
     fout << s_skipOption << " \"" << skip << "\"" << std::endl;
     fout << s_cudaDeviceOption << " \"" << cudaDevice << "\"" << std::endl;
+    fout << s_mnemonicFileOption << " \"" << mnemonicFile << "\"" << std::endl;
+    fout << s_mnemonicStdinFlag << " \"" << mnemonicStdin << "\"" << std::endl;
 }
 
 void Params::restoreFromFile(int &argc, char **&argv)
@@ -100,7 +111,7 @@ void Params::restoreFromFile(int &argc, char **&argv)
     if (!fin.is_open())
         return;
 
-    std::vector<std::string> args(1 + 20);
+    std::vector<std::string> args(1 + 24);
     args.at(0) = "ethrecover.exe";
 
     for (size_t i = 0; i < args.size() / 2; i++) {

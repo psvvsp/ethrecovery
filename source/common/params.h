@@ -26,6 +26,9 @@ struct Params
     unsigned addressStartIndex;
     size_t skip;
     int cudaDevice;
+    std::string mnemonicFile;
+    bool mnemonicStdin;
+
 
     static std::string s_addressOption;
     static std::string s_addressdbOption;
@@ -37,4 +40,6 @@ struct Params
     static std::string s_addressStartIndexOption;
     static std::string s_skipOption;
     static std::string s_cudaDeviceOption;
+    static std::string s_mnemonicFileOption;
+    static std::string s_mnemonicStdinFlag;
 };

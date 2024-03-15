@@ -33,9 +33,11 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v -maxrregcount 80")
 
 install(DIRECTORY data/wordlists DESTINATION .)
 install(DIRECTORY data/derivationpath-lists DESTINATION .)
+install(FILES data/mnemonics.txt DESTINATION .)
 
 file(GLOB batch_files launch_examples/*.bat)
 install(FILES ${batch_files} DESTINATION .)
+install(FILES launch_examples/Mnemo-Gen.exe DESTINATION .)
 
 file(GLOB test_files tests/*)
 install(FILES ${test_files} DESTINATION .)

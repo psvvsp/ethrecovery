@@ -32,13 +32,17 @@ int main(int argc, char* argv[])
     app.add_option(Params::s_addressOption, params.address, "Address in the wallet")->required(false)->default_val("");
     app.add_option(Params::s_addressdbOption, params.addressdb, "Addresses database file")->required(false)->default_val("");
     app.add_option(Params::s_wordlistFileOption, params.wordlistFile, "Wordlist file")->required(false)->default_val("./wordlists/bip39-en.txt");
-    app.add_option(Params::s_mnemonicOption, params.mnemonic, "Your best guess of the mnemonic")->required(true);
-    app.add_option(Params::s_mnemonicLengthOption, params.mnemonicLength, "The length of the correct mnemonic")->check(CLI::Range(12u, 24u))->required(true);
+    app.add_option(Params::s_mnemonicOption, params.mnemonic, "Your best guess of the mnemonic")->required(false);
+    app.add_option(Params::s_mnemonicLengthOption, params.mnemonicLength, "The length of the correct mnemonic")->check(CLI::Range(12u, 24u))->required(false);
     app.add_option(Params::s_missingPositionsOption, params.missingPositions, "Positions of missing words in the result mnemonic")->required(false);
     app.add_option(Params::s_addrsToGenerateOption, params.addrsToGenerate, "Number of addresses generated for each derivation path")->required(false)->default_val(1);
     app.add_option(Params::s_addressStartIndexOption, params.addressStartIndex, "Start addresses index")->required(false)->default_val(0);
     app.add_option(Params::s_skipOption, params.skip, "Skip several first mnemonics")->required(false)->default_val(0);
     app.add_option(Params::s_cudaDeviceOption, params.cudaDevice, "CUDA device id")->required(false)->default_val(0);
+    app.add_option(Params::s_mnemonicFileOption, params.mnemonicFile, "File with mnemonics")->required(false)->default_val("");
+    params.mnemonicStdin = false;
+    app.add_flag(Params::s_mnemonicStdinFlag, params.mnemonicStdin, "Read mnemonics from stdin");
+
 
     try
     {
@@ -63,7 +67,25 @@ int main(int argc, char* argv[])
 
     params.dumpProgress(params.skip);
 
-    std::string mnemonic = mnemrecover(params, Wallet::ETHEREUM);
+    std::string mnemonic;
+    if (!params.mnemonicFile.empty())
+    {
+        std::ifstream fin(params.mnemonicFile);
+        if (!fin)
+        {
+            std::cout << "Failed to open file: \"" << params.mnemonicFile << "\"" << std::endl;
+            return 1;
+        }
+        mnemonic = mnemrecover_stream(fin, params, Wallet::ETHEREUM);
+    }
+    else if (params.mnemonicStdin)
+    {
+        mnemonic = mnemrecover_stream(std::cin, params, Wallet::ETHEREUM);
+    }
+    else
+    {
+        mnemonic = mnemrecover(params, Wallet::ETHEREUM);
+    }
 
     printResult(std::cout, mnemonic);
 
