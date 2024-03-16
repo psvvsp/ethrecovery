@@ -1,0 +1,2 @@
+ethrecover.exe --addrs "0x4ad628A4a291b1a33ccf61266E85De0bA6cb311A" --mnemonic "planet praise slice box become swallow hip hotel pattern" --mnemonic-length 12 --missing-positions "0 1 2" --addrs-to-generate 2 --address-start-index 0 --skip 0
+pause

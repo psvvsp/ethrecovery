@@ -1,0 +1,2 @@
+btcrecover.exe --addrs "bc1q2e4g7qduw3ac6zcwf9pzhqlza5e7gsyy9mxsp3" --wordlist-file ".\wordlists\bip39-en.txt" --mnemonic "category alien forget fiscal neutral budget plate vague account" --mnemonic-length "12" --missing-positions "0 1 2" --addrs-to-generate "2" --address-start-index "0"
+pause
