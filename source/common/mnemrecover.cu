@@ -630,6 +630,8 @@ __global__ void mnemrecover_stream_kernel(
 	//	printf("id = %d\n", id);
 
 	Result result;
+	//for (uint32_t i = 0; i < MNEMONIC_LENGTH; i++)
+	//	result.mnemonic[i] = id++;
 	memcpy(result.mnemonic, mnemos + offset * MNEMONIC_LENGTH, sizeof(uint16_t) * MNEMONIC_LENGTH);
 
 	//if (offset == 16384)
@@ -639,6 +641,7 @@ __global__ void mnemrecover_stream_kernel(
 	//	printf("\n");
 	//}
 
+	//ResultLocal resultLocal = { -1, -1 };
 	ResultLocal resultLocal = checkMnemonic<DICTIONARY_POW, MNEMONIC_LENGTH>(
 		wallet, result.mnemonic, addressStartIndex, addrsToGenerate, dictionary, addressDb, addressDbParams);
 
@@ -921,6 +924,7 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 	CUDA_CALL(cudaMalloc(&mnemIdsNum, sizeof(uint32_t)));
 
 	unsigned threadsPerBlock = THREADS_PER_BLOCK;
+	//unsigned threadsPerBlock = 1;
 	
 	size_t mnemNum = 1;
 	for (size_t i = 0; i < gapSize; i++)
@@ -931,6 +935,7 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 	std::cout << std::endl;
 
 	const unsigned blocksPerGrid = 1024;
+	//const unsigned blocksPerGrid = 1;
 	const unsigned threadsPerGrid = threadsPerBlock * blocksPerGrid;
 
 	size_t numLaunches = ((mnemNum - params.skip)+ threadsPerGrid - 1) / threadsPerGrid;
@@ -1043,7 +1048,11 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 			}
 
 			CUDA_CALL(cudaGetLastError());
+			//steady_clock::time_point begin = steady_clock::now();
 			CUDA_CALL(cudaDeviceSynchronize());
+			//steady_clock::time_point end = steady_clock::now();
+			//auto time_span = duration_cast<duration<double>>(end - begin);
+			//std::cout << "Kernel time: " << time_span.count() << std::endl;
 
 			CUDA_CALL(cudaMemcpy(&resultCPU, result, sizeof(Result), cudaMemcpyDeviceToHost));
 
@@ -1056,7 +1065,7 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 			if (launch > 0) {
 				steady_clock::time_point end = steady_clock::now();
 				auto time_span = duration_cast<duration<double>>(end - begin);
-				std::cout << " (" << 16*size_t(threadsPerGrid / time_span.count()) << " mnemos/s)";
+				std::cout << " (" << 16*size_t(threadsPerGrid / time_span.count()) << " mnemos/s)\r";
 				//std::cout << " (" << time_span.count() << " seconds)";
 				begin = end;
 
@@ -1231,29 +1240,30 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 
 	while (true)
 	{
-		steady_clock::time_point beginRead = steady_clock::now();
+		//steady_clock::time_point beginRead = steady_clock::now();
 		const std::vector<uint16_t> mnemonicBuffer = readMnemonics(in, dict, threadsPerGrid, mnemonicLength);
-		steady_clock::time_point endRead = steady_clock::now();
-		std::cout << "Copying duration: " << duration_cast<seconds>(endRead - beginRead).count() << " seconds" << std::endl;
+		//steady_clock::time_point endRead = steady_clock::now();
+		//std::cout << "Copying duration: " << duration_cast<milliseconds>(endRead - beginRead).count() << " milliseconds" << std::endl;
 		
-		steady_clock::time_point beginCopy = steady_clock::now();
+		//steady_clock::time_point beginCopy = steady_clock::now();
 		CUDA_CALL(cudaMemcpyAsync(mnemoPtr[currentBuffer], mnemonicBuffer.data(), mnemonicBuffer.size() * sizeof(uint16_t), cudaMemcpyHostToDevice, stream));
-		steady_clock::time_point endCopy = steady_clock::now();
-		std::cout << "Memcpy duration: " << duration_cast<seconds>(endCopy - beginCopy).count() << " seconds" << std::endl;
+		//steady_clock::time_point endCopy = steady_clock::now();
+		//std::cout << "Memcpy duration: " << duration_cast<milliseconds>(endCopy - beginCopy).count() << " milliseconds" << std::endl;
 
 		
 		CUDA_CALL(cudaGetLastError());
-		steady_clock::time_point beginWait = steady_clock::now();
+		//steady_clock::time_point beginWait = steady_clock::now();
 		CUDA_CALL(cudaStreamSynchronize(0));
-		steady_clock::time_point endWait = steady_clock::now();
-		std::cout << "Wait duration: " << duration_cast<seconds>(endWait - beginWait).count() << " seconds" << std::endl;
+		//steady_clock::time_point endWait = steady_clock::now();
+		//std::cout << "Wait duration: " << duration_cast<milliseconds>(endWait - beginWait).count() << " milliseconds" << std::endl;
 
 
 		steady_clock::time_point end = steady_clock::now();
-		double secs = static_cast<double>(duration_cast<seconds>(end - begin).count());
+		size_t ms = duration_cast<microseconds>(end - begin).count();
 		begin = end;
 		std::cout << "Processed mnemonics: " << mnemosProcessedTotal 
-			 << " (" << (mnemosProcessedIteration ? size_t(mnemosProcessedIteration / secs) : 0)<< " mnemos/seconds)\n";
+			 << " (" << (ms ? size_t(1'000'000 * mnemosProcessedIteration / ms) : mnemosProcessedIteration)
+			 << " mnemos/seconds)\r";
 
 		CUDA_CALL(cudaMemcpy(&resultCPU, result, sizeof(Result), cudaMemcpyDeviceToHost));
 
@@ -1279,6 +1289,10 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 				static_cast<uint32_t>(mnemonicBuffer.size() / mnemonicLength),
 				offsets,
 				offsetCount);
+
+			//uint32_t offsetCountCPU = 0;
+			//CUDA_CALL(cudaMemcpy(&offsetCountCPU, offsetCount, sizeof(uint32_t), cudaMemcpyDeviceToHost));
+			//std::cout << "offsetCount = " << offsetCountCPU << std::endl;
 
 			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
 			//__global__ void mnemrecover_stream_kernel(
@@ -1319,6 +1333,7 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 
 			//uint32_t offsetCountCPU = 0;
 			//CUDA_CALL(cudaMemcpy(&offsetCountCPU, offsetCount, sizeof(uint32_t), cudaMemcpyDeviceToHost));
+			//std::cout << "offsetCount = " << offsetCountCPU << std::endl;
 			//uint32_t blocksPerGrid1 = (offsetCountCPU + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
 			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
