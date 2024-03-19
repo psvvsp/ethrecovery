@@ -240,7 +240,7 @@ static __device__ ResultLocal checkMnemonic(
 		reinterpret_cast<const uint64_t*>(s_salt), 8, result, 2048, 64);
 
 	//const uint8_t* word = dictionary + (MAX_WORD_LENGTH + 1) * mnemo[0];
-	//if (word[0] == 'u' && word[1] == 'p' && word[2] == 'o' && word[3] == 'n')
+	//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
 	//{
 	//	printf("%s\n", word);
 	//	printBuffer(reinterpret_cast<uint8_t*>(result), 64);
@@ -263,7 +263,7 @@ static __device__ ResultLocal checkMnemonic(
 	for (int i = 0; i < 8; i++)
 		h[threadIdx.x][i] = hc_swap64_S(ctx512.opad.h[i]);
 
-	//if (word[0] == 'u' && word[1] == 'p' && word[2] == 'o' && word[3] == 'n')
+	//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
 	//{
 	//	printf("h = ");
 	//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
@@ -298,7 +298,7 @@ static __device__ ResultLocal checkMnemonic(
 			uint32_t tmp = hc_swap32_S(idx);
 			memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 33, &tmp, 4);
 
-			//if (word[0] == 'u' && word[1] == 'p' && word[2] == 'o' && word[3] == 'n')
+			//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
 			//{
 			//	printf("%u, hmac_data = \n", idx);
 			//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 37);
@@ -353,7 +353,7 @@ static __device__ ResultLocal checkMnemonic(
 			//}
 		}
 
-		//if (word[0] == 'u' && word[1] == 'p' && word[2] == 'o' && word[3] == 'n')
+		//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
 		//{
 		//	printf("privkey_bytes = ");
 		//	printBuffer(reinterpret_cast<uint8_t*>(privkey_bytes), 32);
@@ -408,7 +408,7 @@ static __device__ ResultLocal checkMnemonic(
 			for (int i = 0; i < 8; i++)
 				d_privkey_bytes[i] = hc_swap32_S(d_privkey_bytes[i]);
 
-			//if (word[0] == 'u' && word[1] == 'p' && word[2] == 'o' && word[3] == 'n')
+			//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
 			//{
 			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
 			//	printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
@@ -423,7 +423,7 @@ static __device__ ResultLocal checkMnemonic(
 			private_to_public_full(d_privkey_bytes, d_pubkey);
 
 
-			//if (word[0] == 'u' && word[1] == 'p' && word[2] == 'o' && word[3] == 'n')
+			//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
 			//{
 			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
 			//	printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
@@ -483,7 +483,34 @@ static __device__ ResultLocal checkMnemonic(
 				uint32_t ripe_digest[5];
 				ripemd160(reinterpret_cast<uint8_t*>(sha256_ctx.h), 32, reinterpret_cast<uint8_t*>(ripe_digest));
 
-				//if (word[0] == 'u' && word[1] == 'p' && word[2] == 'o' && word[3] == 'n')
+				if (s_derivation_path_buffer[I] - 2147483648u == 49)
+				{
+					__align__(4) uint8_t WITNESS_PROGRAM[64] = { 0 };
+					WITNESS_PROGRAM[0] = 0x00;
+					WITNESS_PROGRAM[1] = 0x14;
+					memcpy(WITNESS_PROGRAM + 2, ripe_digest, 20);
+
+					sha256_init(&sha256_ctx);
+					sha256_update_swap(&sha256_ctx, reinterpret_cast<uint32_t*>(WITNESS_PROGRAM), 22);
+					sha256_final(&sha256_ctx);
+
+					for (int i = 0; i < 8; i++)
+						sha256_ctx.h[i] = hc_swap32_S(sha256_ctx.h[i]);
+
+					ripemd160(reinterpret_cast<uint8_t*>(sha256_ctx.h), 32, reinterpret_cast<uint8_t*>(ripe_digest));
+
+					//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
+					//{
+					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX WITNESS_PROGRAM = \n");
+					//	printBuffer(WITNESS_PROGRAM, 22);
+
+					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX sha256_ctx.h = \n");
+					//	printBuffer(reinterpret_cast<uint8_t*>(sha256_ctx.h), 32);
+					//}
+
+				}
+
+				//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
 				//{
 				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX compressed_pubkey = \n");
 				//	printBuffer(reinterpret_cast<uint8_t*>(compressed_pubkey), 33);

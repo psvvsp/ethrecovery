@@ -14,3 +14,4 @@ ethrecover.exe --addrs "0x7D95CFFBdDaC444A62941269104B1E10Da54B9B6" --mnemonic "
 ethrecover.exe --cuda-device 0 --addrs "0x019DcEb7dFD01EDF7956412705d1D1217Fbc5956" --mnemonic "ひとごみ　そぼく　ぱんち　せんねん　にんち　えんげき　きもだめし　ぐうせい　えのぐ　きくばり　しつもん"  --mnemonic-length 12 --missing-positions "11" --addrs-to-generate 2 --address-start-index 0 --skip 0 --wordlist-file "./wordlists/bip39-ja.txt"
 btcrecover.exe --addrs "1JXHDJChzUpFthPufcKJFMu45uB7Byfww7" --wordlist-file ".\\wordlists\\bip39-en.txt" --mnemonic-file ".\\mnemonics.txt"
 ethrecover.exe --addrs "0x98C25BDE634886085d7E908E66Cd667769F4B3CC" --wordlist-file ".\\wordlists\\bip39-en.txt" --mnemonic-file ".\\mnemonics.txt"
+btcrecover.exe --addrs "35yfZ1fSTvFZ7bFR5jKmszBEY6cdXMjwyW"  --wordlist-file ".\\wordlists\\bip39-en.txt" --mnemonic "country artefact blur insect stay west inquiry hero broom exhaust evidence" --mnemonic-length 12 --missing-positions "0" --addrs-to-generate 2 --address-start-index 0 --skip 0
