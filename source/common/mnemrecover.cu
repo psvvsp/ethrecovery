@@ -212,10 +212,10 @@ struct ResultLocal
 	uint32_t derPathIdx;
 };
 
-template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
 static __device__ ResultLocal checkMnemonic(
 	Wallet wallet,
-	uint16_t* mnemo,
+	const uint64_t* mnemo,
+	uint32_t mnemoSize,
 	uint32_t addressStartIndex,
 	uint32_t addrsToGenerate,
 	const uint8_t* dictionary,
@@ -224,19 +224,13 @@ static __device__ ResultLocal checkMnemonic(
 {
 	ResultLocal resultLocal = { -1, -1 };
 
-	MnemBuilder<MNEMONIC_LENGTH, MAX_WORD_LENGTH> mnemBuilder(dictionary, 1 << DICTIONARY_POW);
-
-	for (uint32_t i = 0; i < MNEMONIC_LENGTH; i++) {
-			mnemBuilder.add(mnemo[i]);
-	}
-
 	//__device__ void pbkdf2(
 	//	const word * inbuffer, word inbufferSizeBytes,
 	//	const word * saltbuffer, word * outbuffer,
 	//	unsigned int iters, unsigned int dkLen_bytes);
 
 	uint64_t result[8] = { 0 };
-	pbkdf2(mnemBuilder.mnemo(), mnemBuilder.mnemoSizeBytes(),
+	pbkdf2(mnemo, mnemoSize,
 		reinterpret_cast<const uint64_t*>(s_salt), 8, result, 2048, 64);
 
 	//const uint8_t* word = dictionary + (MAX_WORD_LENGTH + 1) * mnemo[0];
@@ -551,7 +545,7 @@ struct Result
 {
 	uint32_t addressIdx;
 	uint32_t derPathIdx;
-	uint16_t mnemonic[MAX_MNEMONIC_LENGTH];
+	__align__(8) char mnemonic[MAX_MNEMONIC_LENGTH * MAX_WORD_LENGTH + (MAX_MNEMONIC_LENGTH - 1) + 24] = { 0 };
 };
 
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
@@ -593,16 +587,16 @@ __global__ void ethrecover_kernel(
 			mnemIdCopy = mnemIdCopy >> DICTIONARY_POW;
 		}
 
-		Result result;
+		uint16_t mnemo[MNEMONIC_LENGTH];
 
 		uint32_t j = 0, k = 0;
 		for (uint32_t i = 0; i < MNEMONIC_LENGTH; i++) {
 			if (j < gapSize && posArr[j] == i) {
-				result.mnemonic[i] = wordIds[j];
+				mnemo[i] = wordIds[j];
 				j++;
 			}
 			else {
-				result.mnemonic[i] = s_mnemonics[k];
+				mnemo[i] = s_mnemonics[k];
 				k++;
 			}
 		}
@@ -615,25 +609,32 @@ __global__ void ethrecover_kernel(
 		//	printf("\n");
 		//}
 
-		ResultLocal resultLocal = checkMnemonic<DICTIONARY_POW, MNEMONIC_LENGTH>(
-			wallet, result.mnemonic, addressStartIndex, addrsToGenerate, dictionary, addressDb, addressDbParams);
+		MnemBuilder<MNEMONIC_LENGTH, MAX_WORD_LENGTH> mnemBuilder(dictionary, 1 << DICTIONARY_POW);
+
+		for (uint32_t i = 0; i < MNEMONIC_LENGTH; i++) {
+			mnemBuilder.add(mnemo[i]);
+		}
+
+		ResultLocal resultLocal = checkMnemonic(
+			wallet, mnemBuilder.mnemo(), mnemBuilder.mnemoSizeBytes(), addressStartIndex, addrsToGenerate, dictionary, addressDb, addressDbParams);
 
 		if (resultLocal.addressIdx != unsigned(-1) && resultLocal.derPathIdx != unsigned(-1))
 		{
+			Result result;
 			result.addressIdx = resultLocal.addressIdx;
 			result.derPathIdx = resultLocal.derPathIdx;
+			memcpy(result.mnemonic, mnemBuilder.mnemo(), mnemBuilder.mnemoSizeBytes());
 			*resultGPU = result;
 		}
 	}
 }
 
-template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-//__launch_bounds__(THREADS_PER_BLOCK, 3)
+
 __global__ void mnemrecover_stream_kernel(
 	Wallet wallet,
-	const uint16_t *mnemos,
+	const uint8_t *mnemos,
 	const uint32_t *offsets,
-	const uint32_t *offsetCount,
+	const uint32_t offsetCount,
 	uint32_t addressStartIndex,
 	uint32_t addrsToGenerate,
 	Result* resultGPU,
@@ -641,25 +642,20 @@ __global__ void mnemrecover_stream_kernel(
 	const uint64_t* addressDb,
 	AddressDbParams addressDbParams)
 {
-	__shared__ uint32_t offsetCountShared;
-	if (threadIdx.x == 0) {
-		offsetCountShared = *offsetCount;
-	}
-	__syncthreads();
-
 	uint32_t id = blockIdx.x * blockDim.x + threadIdx.x;
-	if (id >= offsetCountShared)
+	if (id >= offsetCount)
 		return;
 
-	uint32_t offset = offsets[id];
+	uint32_t beg = offsets[id];
+	uint32_t end = offsets[id + 1];
 
-	//if (offset == 16384)
-	//	printf("id = %d\n", id);
+//	if (id == 0)
+//		printf("id = %d, beg = %d, end = %d\n", id, beg, end);
 
 	Result result;
 	//for (uint32_t i = 0; i < MNEMONIC_LENGTH; i++)
 	//	result.mnemonic[i] = id++;
-	memcpy(result.mnemonic, mnemos + offset * MNEMONIC_LENGTH, sizeof(uint16_t) * MNEMONIC_LENGTH);
+	memcpy(result.mnemonic, mnemos + beg, end - beg);
 
 	//if (offset == 16384)
 	//{
@@ -669,8 +665,8 @@ __global__ void mnemrecover_stream_kernel(
 	//}
 
 	//ResultLocal resultLocal = { -1, -1 };
-	ResultLocal resultLocal = checkMnemonic<DICTIONARY_POW, MNEMONIC_LENGTH>(
-		wallet, result.mnemonic, addressStartIndex, addrsToGenerate, dictionary, addressDb, addressDbParams);
+	ResultLocal resultLocal = checkMnemonic(
+		wallet, reinterpret_cast<uint64_t *>(result.mnemonic), end - beg, addressStartIndex, addrsToGenerate, dictionary, addressDb, addressDbParams);
 
 	if (resultLocal.addressIdx != unsigned(-1) && resultLocal.derPathIdx != unsigned(-1))
 	{
@@ -1111,75 +1107,36 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 	if (resultCPU.addressIdx == uint32_t(-1))
 		return std::string();
 
-	std::string mnemonic;
-
-	for (size_t i = 0; i < params.mnemonicLength; i++)
-	{
-		std::string word;
-		bool success = dict.getWord(resultCPU.mnemonic[i], word);
-		assert(success);
-		mnemonic.append(" " + word);
-	}
-
-	mnemonic = dps.at(resultCPU.derPathIdx) + "/" + std::to_string(resultCPU.addressIdx) + ": " + mnemonic;
+	std::string mnemonic = dps.at(resultCPU.derPathIdx) + "/" + std::to_string(resultCPU.addressIdx) + ": " + std::string(resultCPU.mnemonic);
 
 	return mnemonic;
 }
 
 
-std::vector<uint16_t> readMnemonics(std::istream& in, const Dictionary& dict, size_t mnemonicCount, size_t &mnemonicLength)
+void readMnemonics(std::istream& in, std::vector<uint8_t> &mnemonics, std::vector<uint32_t> &offsets, size_t mnemonicCount)
 {
-	std::vector<uint16_t> result;
+	mnemonics.clear();
+	
+	offsets.resize(1);
+	offsets.at(0) = 0;
 
+	size_t offset = 0;
 	for (size_t i = 0; i < mnemonicCount; i++)
 	{
 		std::string mnemonic;
 		if (!std::getline(in, mnemonic))
-			return result;
+			return;
+
+		if (mnemonic.back() == '\r')
+			mnemonic.pop_back();
 
 		std::string normalized_mnemonic = una::norm::to_nfkd_utf8(mnemonic);
-		std::vector<std::string> mnemonicVector = split(normalized_mnemonic);
+		mnemonics.insert(mnemonics.end(), normalized_mnemonic.begin(), normalized_mnemonic.end());
+		
+		offset += normalized_mnemonic.size();
+		offsets.push_back(static_cast<uint32_t>(offset));
 
-		for (std::string& word : mnemonicVector)
-			word = una::norm::to_nfkd_utf8(word);
-
-		if (i == 0 && mnemonicLength == 0)
-		{
-			mnemonicLength = mnemonicVector.size();
-		}
-		else if (mnemonicLength != mnemonicVector.size())
-		{
-			std::cout << "Warning: mnemonic \"" << mnemonic << "\" contains "
-				<< mnemonicVector.size() << " words; " << mnemonicLength << " expected. Skip mnemonic" << std::endl;
-			continue;
-		}
-
-		std::vector<uint16_t> idVector;
-		for (const std::string& word : mnemonicVector)
-		{
-			size_t id;
-			if (!dict.getId(id, word))
-			{
-				std::cout << "Warning: the word \"" << word << "\" is not in the dictionary. Skip mnemonic" << std::endl;
-				continue;
-			}
-			idVector.push_back(static_cast<uint16_t>(id));
-		}
-
-		//if (i == 16384)
-		//{
-		//	for (uint16_t id : idVector)
-		//	{
-		//		std::cout << id << " ";
-		//	}
-		//	std::cout << std::endl;
-		//}
-
-		if (idVector.size() == mnemonicLength)
-			result.insert(result.end(), idVector.begin(), idVector.end());
 	}
-
-	return result;
 }
 
 bool setAddressOrAddressDb(uint64_t*& addressDbPtr, AddressDbParams& addressDbParams, const Params &params, Wallet wallet)
@@ -1242,15 +1199,16 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 	const unsigned blocksPerGrid = 1024;
 	const unsigned threadsPerGrid = threadsPerBlock * blocksPerGrid;
 
-	uint16_t* mnemoPtr[2] = { nullptr, nullptr };
-	CUDA_CALL(cudaMalloc(&mnemoPtr[0], threadsPerGrid * MAX_MNEMONIC_LENGTH * sizeof(uint16_t)));
-	CUDA_CALL(cudaMalloc(&mnemoPtr[1], threadsPerGrid * MAX_MNEMONIC_LENGTH * sizeof(uint16_t)));
+	uint8_t* mnemoPtr[2] = { nullptr, nullptr };
+	CUDA_CALL(cudaMalloc(&mnemoPtr[0], threadsPerGrid * (MAX_MNEMONIC_LENGTH * MAX_WORD_LENGTH + MAX_MNEMONIC_LENGTH - 1)));
+	CUDA_CALL(cudaMalloc(&mnemoPtr[1], threadsPerGrid * (MAX_MNEMONIC_LENGTH * MAX_WORD_LENGTH + MAX_MNEMONIC_LENGTH - 1)));
 
-	uint32_t* offsets = nullptr;
-	CUDA_CALL(cudaMalloc(&offsets, threadsPerGrid*sizeof(uint32_t)));
+	uint32_t* offsetPtr[2] = { nullptr, nullptr };
+	CUDA_CALL(cudaMalloc(&offsetPtr[0], (threadsPerGrid + 1) * sizeof(uint32_t)));
+	CUDA_CALL(cudaMalloc(&offsetPtr[1], (threadsPerGrid + 1) * sizeof(uint32_t)));
 
-	uint32_t* offsetCount = nullptr;
-	CUDA_CALL(cudaMalloc(&offsetCount, sizeof(uint32_t)));
+	//uint32_t* offsetCount = nullptr;
+	//CUDA_CALL(cudaMalloc(&offsetCount, sizeof(uint32_t)));
 
 	size_t mnemonicLength = 0;
 
@@ -1268,12 +1226,15 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 	while (true)
 	{
 		//steady_clock::time_point beginRead = steady_clock::now();
-		const std::vector<uint16_t> mnemonicBuffer = readMnemonics(in, dict, threadsPerGrid, mnemonicLength);
+		std::vector<uint8_t> mnemonics;
+		std::vector<uint32_t> offsets;
+		readMnemonics(in, mnemonics, offsets, threadsPerGrid);
 		//steady_clock::time_point endRead = steady_clock::now();
 		//std::cout << "Copying duration: " << duration_cast<milliseconds>(endRead - beginRead).count() << " milliseconds" << std::endl;
 		
 		//steady_clock::time_point beginCopy = steady_clock::now();
-		CUDA_CALL(cudaMemcpyAsync(mnemoPtr[currentBuffer], mnemonicBuffer.data(), mnemonicBuffer.size() * sizeof(uint16_t), cudaMemcpyHostToDevice, stream));
+		CUDA_CALL(cudaMemcpyAsync(mnemoPtr[currentBuffer], mnemonics.data(), mnemonics.size(), cudaMemcpyHostToDevice, stream));
+		CUDA_CALL(cudaMemcpyAsync(offsetPtr[currentBuffer], offsets.data(), offsets.size()*sizeof(uint32_t), cudaMemcpyHostToDevice, stream));
 		//steady_clock::time_point endCopy = steady_clock::now();
 		//std::cout << "Memcpy duration: " << duration_cast<milliseconds>(endCopy - beginCopy).count() << " milliseconds" << std::endl;
 
@@ -1297,100 +1258,25 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 		if (resultCPU.addressIdx != uint32_t(-1))
 			break;
 
-		if (mnemonicBuffer.empty())
+		if (mnemonics.empty())
 			break;
 
 
-		CUDA_CALL(cudaMemset(offsetCount, 0x00, sizeof(uint32_t)));
 		CUDA_CALL(cudaStreamSynchronize(stream));
 
-		if (dict.sizePow() == 11 && mnemonicLength == 12) {
-			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-			//__global__ void mnemrecover_stream_checksum_kernel(
-			//	uint16_t * mnemonics,
-			//	uint32_t mnemonicCount,
-			//	uint32_t * offsets,
-			//	uint32_t * offsetCount)
-			mnemrecover_stream_checksum_kernel<11, 12> << <blocksPerGrid, threadsPerBlock >> > (
-				mnemoPtr[currentBuffer],
-				static_cast<uint32_t>(mnemonicBuffer.size() / mnemonicLength),
-				offsets,
-				offsetCount);
+		mnemrecover_stream_kernel << <blocksPerGrid, threadsPerBlock >> > (
+			wallet,
+			mnemoPtr[currentBuffer],
+			offsetPtr[currentBuffer],
+			static_cast<uint32_t>(offsets.size() - 1),
+			params.addressStartIndex,
+			params.addrsToGenerate,
+			result,
+			dictionaryGPU,
+			addressDbPtr,
+			addressDbParams);
 
-			//uint32_t offsetCountCPU = 0;
-			//CUDA_CALL(cudaMemcpy(&offsetCountCPU, offsetCount, sizeof(uint32_t), cudaMemcpyDeviceToHost));
-			//std::cout << "offsetCount = " << offsetCountCPU << std::endl;
-
-			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-			//__global__ void mnemrecover_stream_kernel(
-			//	Wallet wallet,
-			//	const uint16_t * mnemos,
-			//	const uint32_t * offsets,
-			//	const uint32_t * offsetCount,
-			//	uint32_t addressStartIndex,
-			//	uint32_t addrsToGenerate,
-			//	Result * resultGPU,
-			//	const uint8_t * dictionary,
-			//	const uint64_t * addressDb,
-			//	AddressDbParams addressDbParams)
-			mnemrecover_stream_kernel<11, 12> << <blocksPerGrid, threadsPerBlock >> > (
-				wallet,
-				mnemoPtr[currentBuffer],
-				offsets,
-				offsetCount,
-				params.addressStartIndex,
-				params.addrsToGenerate,
-				result,
-				dictionaryGPU,
-				addressDbPtr,
-				addressDbParams);
-		}
-		else if (dict.sizePow() == 11 && mnemonicLength == 24) {
-			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-			//__global__ void mnemrecover_stream_checksum_kernel(
-			//	uint16_t * mnemonics,
-			//	uint32_t mnemonicCount,
-			//	uint32_t * offsets,
-			//	uint32_t * offsetCount)
-			mnemrecover_stream_checksum_kernel<11, 24> << <blocksPerGrid, threadsPerBlock >> > (
-				mnemoPtr[currentBuffer],
-				static_cast<uint32_t>(mnemonicBuffer.size() / mnemonicLength),
-				offsets,
-				offsetCount);
-
-			//uint32_t offsetCountCPU = 0;
-			//CUDA_CALL(cudaMemcpy(&offsetCountCPU, offsetCount, sizeof(uint32_t), cudaMemcpyDeviceToHost));
-			//std::cout << "offsetCount = " << offsetCountCPU << std::endl;
-			//uint32_t blocksPerGrid1 = (offsetCountCPU + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-
-			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-			//__global__ void mnemrecover_stream_kernel(
-			//	Wallet wallet,
-			//	const uint16_t * mnemos,
-			//	const uint32_t * offsets,
-			//	const uint32_t * offsetCount,
-			//	uint32_t addressStartIndex,
-			//	uint32_t addrsToGenerate,
-			//	Result * resultGPU,
-			//	const uint8_t * dictionary,
-			//	const uint64_t * addressDb,
-			//	AddressDbParams addressDbParams)
-			mnemrecover_stream_kernel<11, 24> << <blocksPerGrid, threadsPerBlock >> > (
-				wallet,
-				mnemoPtr[currentBuffer],
-				offsets,
-				offsetCount,
-				params.addressStartIndex,
-				params.addrsToGenerate,
-				result,
-				dictionaryGPU,
-				addressDbPtr,
-				addressDbParams);
-		}
-		else
-			assert(false);
-
-		mnemosProcessedIteration = mnemonicBuffer.size() / mnemonicLength;
+		mnemosProcessedIteration = offsets.size() - 1;
 		mnemosProcessedTotal += mnemosProcessedIteration;
 		currentBuffer = (currentBuffer + 1) % 2;
 	}
@@ -1400,17 +1286,7 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 	if (resultCPU.addressIdx == uint32_t(-1))
 		return std::string();
 
-	std::string mnemonic;
-
-	for (size_t i = 0; i < mnemonicLength; i++)
-	{
-		std::string word;
-		bool success = dict.getWord(resultCPU.mnemonic[i], word);
-		assert(success);
-		mnemonic.append(" " + word);
-	}
-
-	mnemonic = dps.at(resultCPU.derPathIdx) + "/" + std::to_string(resultCPU.addressIdx) + ": " + mnemonic;
+	std::string mnemonic = dps.at(resultCPU.derPathIdx) + "/" + std::to_string(resultCPU.addressIdx) + ": " + std::string(resultCPU.mnemonic);
 
 	return mnemonic;
 }
