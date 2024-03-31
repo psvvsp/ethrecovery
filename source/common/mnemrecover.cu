@@ -769,6 +769,11 @@ static std::vector<std::string> split(const std::string &str)
 	while (true) {
 		std::string s;
 		ss >> s;
+
+		// erase unicode marker
+		if (s.size() >= 3 && s.at(0) == char(0xef) && s.at(1) == char(0xbb) && s.at(2) == char(0xbf))
+			s.erase(0, 3);
+
 		if (ss)	result.push_back(s);
 		else break;
 	}
@@ -1161,7 +1166,7 @@ std::vector<uint16_t> readMnemonics(std::istream& in, const Dictionary& dict, si
 			if (!dict.getId(id, word))
 			{
 				std::cout << "Warning: the word \"" << word << "\" is not in the dictionary. Skip mnemonic" << std::endl;
-				continue;
+				break;
 			}
 			idVector.push_back(static_cast<uint16_t>(id));
 		}
