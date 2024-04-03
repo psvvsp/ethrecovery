@@ -213,21 +213,15 @@ struct ResultLocal
 };
 
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-static __device__ ResultLocal checkMnemonic(
-	Wallet wallet,
-	uint16_t* mnemo,
-	uint32_t addressStartIndex,
-	uint32_t addrsToGenerate,
+static __device__ ResultLocal checkMnemonicStart(
+	const uint16_t* mnemo,
 	const uint8_t* dictionary,
-	const uint64_t* addressDb,
-	AddressDbParams addressDbParams)
+	uint64_t h[8])
 {
-	ResultLocal resultLocal = { -1, -1 };
-
 	MnemBuilder<MNEMONIC_LENGTH, MAX_WORD_LENGTH> mnemBuilder(dictionary, 1 << DICTIONARY_POW);
 
 	for (uint32_t i = 0; i < MNEMONIC_LENGTH; i++) {
-			mnemBuilder.add(mnemo[i]);
+		mnemBuilder.add(mnemo[i]);
 	}
 
 	//__device__ void pbkdf2(
@@ -259,19 +253,299 @@ static __device__ ResultLocal checkMnemonic(
 	sha512_hmac_update_swap(&ctx512, reinterpret_cast<uint32_t*>(result), 64);
 	sha512_hmac_final(&ctx512);
 
-	__shared__ uint64_t h[THREADS_PER_BLOCK][8];
 	for (int i = 0; i < 8; i++)
-		h[threadIdx.x][i] = hc_swap64_S(ctx512.opad.h[i]);
+		h[i] = hc_swap64_S(ctx512.opad.h[i]);
+}
+
+static __device__ void checkMnemonicMiddle(
+	const uint64_t h[8],
+	uint32_t I,
+	uint32_t current_path_index_length,
+	uint32_t privkey_bytes[8],
+	uint32_t chaincode_bytes[8],
+	uint32_t hmac_data[16]
+)
+{
+	memcpy(privkey_bytes, h, 32);
+	memcpy(chaincode_bytes, h + 4, 32);
+
+	for (uint32_t i = I; i < I + current_path_index_length; i++) {
+
+		uint32_t idx = s_derivation_path_buffer[i];
+		//uint32_t hmac_data[16] = { 0 };
+
+		if (idx < 2147483648u) {
+			private_to_public(privkey_bytes, hmac_data);
+		}
+		else {
+			memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 1, privkey_bytes, 32);
+		}
+		uint32_t tmp = hc_swap32_S(idx);
+		memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 33, &tmp, 4);
+
+		//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
+		//{
+		//	printf("%u, hmac_data = \n", idx);
+		//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 37);
+		//}
+		//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+		//	printf("%u, hmac_data = \n", idx);
+		//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 37);
+		//	//printf("%u, basepoint = \n", idx);
+		//	//printBuffer(reinterpret_cast<uint8_t*>(s_basepoint.xy), 4 * 96);
+		//}
+
+		sha512_hmac_ctx ctx512;
+		sha512_hmac_init_swap(&ctx512, chaincode_bytes, 32);
+		sha512_hmac_update_swap(&ctx512, hmac_data, 37);
+		sha512_hmac_final(&ctx512);
+
+		for (int i = 0; i < 8; i++)
+			ctx512.opad.h[i] = hc_swap64_S(ctx512.opad.h[i]);
+
+		//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+		//	printf("%u, opad = \n", idx);
+		//	printBuffer(reinterpret_cast<uint8_t*>(ctx512.opad.h), 64);
+		//	printf("%u, a = \n", idx);
+		//	printBuffer(reinterpret_cast<uint8_t*>(ctx512.opad.h), 32);
+		//	printf("%u, b = \n", idx);
+		//	printBuffer(reinterpret_cast<uint8_t*>(privkey_bytes), 32);
+		//}
+
+		uint32_t* bytes = reinterpret_cast<uint32_t*>(ctx512.opad.h);
+		for (int i = 0; i < 8; i++)
+			bytes[i] = hc_swap32_S(bytes[i]);
+
+		BigInteger<8> bigInt1(reinterpret_cast<uint32_t*>(ctx512.opad.h));
+
+		for (int i = 0; i < 8; i++)
+			privkey_bytes[i] = hc_swap32_S(privkey_bytes[i]);
+
+		BigInteger<8> bigInt2(privkey_bytes);
+		bigInt1 += bigInt2;
+
+		BigInteger<8> bigInt3(s_generator_order);
+		bigInt1.mod(bigInt3);
+
+		memcpy(privkey_bytes, bigInt1.get(), 32);
+		memcpy(chaincode_bytes, ctx512.opad.h + 4, 32);
+
+		for (int i = 0; i < 8; i++)
+			privkey_bytes[i] = hc_swap32_S(privkey_bytes[i]);
+
+		//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+		//	printf("%u, c = \n", idx);
+		//	printBuffer(reinterpret_cast<uint8_t*>(privkey_bytes), 32);
+		//}
+	}
 
 	//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
 	//{
-	//	printf("h = ");
+	//	printf("privkey_bytes = ");
+	//	printBuffer(reinterpret_cast<uint8_t*>(privkey_bytes), 32);
+
+	//	printf("chaincode_bytes = ");
+	//	printBuffer(reinterpret_cast<uint8_t*>(chaincode_bytes), 32);
+	//}
+
+	//uint32_t hmac_data[16] = { 0 };
+	private_to_public(privkey_bytes, hmac_data);
+
+	//if (wordIds[0] == 1551) {
+	//	printf("\n XXXXXXXXXXXXXXXXXXXXX hmac_data = \n");
+	//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 33);
+	//}
+
+	for (int i = 0; i < 8; i++)
+		privkey_bytes[i] = hc_swap32_S(privkey_bytes[i]);
+}
+
+static __device__ bool checkMnemonicFinish(
+	Wallet wallet,
+	const uint64_t* addressDb,
+	AddressDbParams addressDbParams,
+	uint32_t privkey_bytes[8],
+	uint32_t chaincode_bytes[8],
+	uint32_t hmac_data[16],
+	uint32_t addressIndex,
+	uint32_t I
+)
+{
+	BigInteger<8> privkey_int(privkey_bytes);
+
+	uint32_t tmp = hc_swap32_S(addressIndex);
+	memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 33, &tmp, 4);
+
+	sha512_hmac_ctx ctx512;
+	sha512_hmac_init_swap(&ctx512, chaincode_bytes, 32);
+	sha512_hmac_update_swap(&ctx512, hmac_data, 37);
+	sha512_hmac_final(&ctx512);
+
+	uint64_t h[8];
+	for (int i = 0; i < 8; i++)
+		h[i] = hc_swap64_S(ctx512.opad.h[i]);
+
+	//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+	//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX h = \n");
 	//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
 	//}
 
-	//if (wordIds[0] == 1551) {
-	//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
+	for (int i = 0; i < 8; i++)
+		reinterpret_cast<uint32_t*>(h)[i] = hc_swap32_S(reinterpret_cast<uint32_t*>(h)[i]);
+
+	BigInteger<8> bigInt(reinterpret_cast<uint32_t*>(h));
+	bigInt += privkey_int;
+
+	BigInteger<8> bigInt3(s_generator_order);
+	bigInt.mod(bigInt3);
+
+	uint32_t d_privkey_bytes[8];
+	memcpy(d_privkey_bytes, bigInt.get(), 32);
+
+	for (int i = 0; i < 8; i++)
+		d_privkey_bytes[i] = hc_swap32_S(d_privkey_bytes[i]);
+
+	//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
+	//{
+	//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
+	//	printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
 	//}
+
+	//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+	//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
+	//	printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
+	//}
+
+	uint32_t d_pubkey[16] = { 0 };
+	private_to_public_full(d_privkey_bytes, d_pubkey);
+
+
+	//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
+	//{
+	//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
+	//	printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
+	//}
+
+	//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+	//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
+	//	printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
+	//}
+
+	bool equal = true;
+
+	if (wallet == Wallet::ETHEREUM)
+	{
+		uint32_t r[8];
+		keccak256(r, d_pubkey, 64);
+
+		const uint32_t* addressWords = reinterpret_cast<uint32_t*>(s_address);
+		//const uint32_t* addressWordsTest = reinterpret_cast<uint32_t*>(d_ctx512.h) + 11;
+		const uint32_t* addressWordsTest = r + 3;
+
+		//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
+		//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWords = \n");
+		//	printBuffer(reinterpret_cast<const uint8_t *>(addressWords), 20);
+
+		//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWordsTest = \n");
+		//	printBuffer(reinterpret_cast<const uint8_t*>(addressWordsTest), 20);
+
+		//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX r = \n");
+		//	printBuffer(reinterpret_cast<const uint8_t*>(r), 32);
+		//}
+
+		if (!addressDb) {
+			for (int i = 0; i < 5; i++)
+				if (addressWords[i] != addressWordsTest[i])
+					equal = false;
+		}
+		else {
+			//printf("XXX");
+			equal = findInDatabase(reinterpret_cast<const uint8_t*>(addressWordsTest), addressDb, addressDbParams);
+		}
+	}
+	else if (wallet == Wallet::BITCOIN)
+	{
+		uint32_t compressed_pubkey[16] = { 0 };
+		reinterpret_cast<uint8_t*>(compressed_pubkey)[0] = (reinterpret_cast<uint8_t*>(d_pubkey)[63] & 0x01) + 2;
+		memcpy(reinterpret_cast<uint8_t*>(compressed_pubkey) + 1, d_pubkey, 32);
+
+		sha256_ctx_t sha256_ctx;
+		sha256_init(&sha256_ctx);
+		sha256_update_swap(&sha256_ctx, compressed_pubkey, 33);
+		sha256_final(&sha256_ctx);
+
+		for (int i = 0; i < 8; i++)
+			sha256_ctx.h[i] = hc_swap32_S(sha256_ctx.h[i]);
+
+		uint32_t ripe_digest[5];
+		ripemd160(reinterpret_cast<uint8_t*>(sha256_ctx.h), 32, reinterpret_cast<uint8_t*>(ripe_digest));
+
+		if (s_derivation_path_buffer[I] - 2147483648u == 49)
+		{
+			__align__(4) uint8_t WITNESS_PROGRAM[64] = { 0 };
+			WITNESS_PROGRAM[0] = 0x00;
+			WITNESS_PROGRAM[1] = 0x14;
+			memcpy(WITNESS_PROGRAM + 2, ripe_digest, 20);
+
+			sha256_init(&sha256_ctx);
+			sha256_update_swap(&sha256_ctx, reinterpret_cast<uint32_t*>(WITNESS_PROGRAM), 22);
+			sha256_final(&sha256_ctx);
+
+			for (int i = 0; i < 8; i++)
+				sha256_ctx.h[i] = hc_swap32_S(sha256_ctx.h[i]);
+
+			ripemd160(reinterpret_cast<uint8_t*>(sha256_ctx.h), 32, reinterpret_cast<uint8_t*>(ripe_digest));
+
+			//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
+			//{
+			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX WITNESS_PROGRAM = \n");
+			//	printBuffer(WITNESS_PROGRAM, 22);
+
+			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX sha256_ctx.h = \n");
+			//	printBuffer(reinterpret_cast<uint8_t*>(sha256_ctx.h), 32);
+			//}
+
+		}
+
+		//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
+		//{
+		//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX compressed_pubkey = \n");
+		//	printBuffer(reinterpret_cast<uint8_t*>(compressed_pubkey), 33);
+
+		//	//printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX hh = \n");
+		//	//printBuffer(reinterpret_cast<uint8_t*>(hh), 32);
+
+		//	printf("\n ripe_digest = \n");
+		//	printBuffer(reinterpret_cast<uint8_t*>(ripe_digest), 20);
+		//}
+
+		if (!addressDb) {
+			const uint32_t* addressWords = reinterpret_cast<uint32_t*>(s_address);
+			for (int i = 0; i < 5; i++)
+				if (addressWords[i] != ripe_digest[i])
+					equal = false;
+		}
+		else {
+			equal = findInDatabase(reinterpret_cast<const uint8_t*>(ripe_digest), addressDb, addressDbParams);
+		}
+	}
+	return equal;
+}
+
+template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
+static __device__ ResultLocal checkMnemonic(
+	Wallet wallet,
+	uint16_t* mnemo,
+	uint32_t addressStartIndex,
+	uint32_t addrsToGenerate,
+	const uint8_t* dictionary,
+	const uint64_t* addressDb,
+	AddressDbParams addressDbParams)
+{
+	ResultLocal resultLocal = { -1, -1 };
+
+	uint64_t h[8];
+	checkMnemonicStart<DICTIONARY_POW, MNEMONIC_LENGTH>(mnemo, dictionary, h);
 
 	uint32_t I = 0;
 	uint32_t current_path_index_length = s_derivation_path_buffer[I++];
@@ -279,260 +553,14 @@ static __device__ ResultLocal checkMnemonic(
 	for (uint32_t k = 0; current_path_index_length != 0; k++) {
 
 		uint32_t privkey_bytes[8];
-		memcpy(privkey_bytes, h[threadIdx.x], 32);
-
-		uint32_t chaincode_bytes[8] = { 0 };
-		memcpy(chaincode_bytes, h[threadIdx.x] + 4, 32);
-
-		for (uint32_t i = I; i < I + current_path_index_length; i++) {
-
-			uint32_t idx = s_derivation_path_buffer[i];
-			uint32_t hmac_data[16] = { 0 };
-
-			if (idx < 2147483648u) {
-				private_to_public(privkey_bytes, hmac_data);
-			}
-			else {
-				memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 1, privkey_bytes, 32);
-			}
-			uint32_t tmp = hc_swap32_S(idx);
-			memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 33, &tmp, 4);
-
-			//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
-			//{
-			//	printf("%u, hmac_data = \n", idx);
-			//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 37);
-			//}
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-			//	printf("%u, hmac_data = \n", idx);
-			//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 37);
-			//	//printf("%u, basepoint = \n", idx);
-			//	//printBuffer(reinterpret_cast<uint8_t*>(s_basepoint.xy), 4 * 96);
-			//}
-
-			sha512_hmac_init_swap(&ctx512, chaincode_bytes, 32);
-			sha512_hmac_update_swap(&ctx512, hmac_data, 37);
-			sha512_hmac_final(&ctx512);
-
-			for (int i = 0; i < 8; i++)
-				ctx512.opad.h[i] = hc_swap64_S(ctx512.opad.h[i]);
-
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-			//	printf("%u, opad = \n", idx);
-			//	printBuffer(reinterpret_cast<uint8_t*>(ctx512.opad.h), 64);
-			//	printf("%u, a = \n", idx);
-			//	printBuffer(reinterpret_cast<uint8_t*>(ctx512.opad.h), 32);
-			//	printf("%u, b = \n", idx);
-			//	printBuffer(reinterpret_cast<uint8_t*>(privkey_bytes), 32);
-			//}
-
-			uint32_t* bytes = reinterpret_cast<uint32_t*>(ctx512.opad.h);
-			for (int i = 0; i < 8; i++)
-				bytes[i] = hc_swap32_S(bytes[i]);
-
-			BigInteger<8> bigInt1(reinterpret_cast<uint32_t*>(ctx512.opad.h));
-
-			for (int i = 0; i < 8; i++)
-				privkey_bytes[i] = hc_swap32_S(privkey_bytes[i]);
-
-			BigInteger<8> bigInt2(privkey_bytes);
-			bigInt1 += bigInt2;
-
-			BigInteger<8> bigInt3(s_generator_order);
-			bigInt1.mod(bigInt3);
-
-			memcpy(privkey_bytes, bigInt1.get(), 32);
-			memcpy(chaincode_bytes, ctx512.opad.h + 4, 32);
-
-			for (int i = 0; i < 8; i++)
-				privkey_bytes[i] = hc_swap32_S(privkey_bytes[i]);
-
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-			//	printf("%u, c = \n", idx);
-			//	printBuffer(reinterpret_cast<uint8_t*>(privkey_bytes), 32);
-			//}
-		}
-
-		//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
-		//{
-		//	printf("privkey_bytes = ");
-		//	printBuffer(reinterpret_cast<uint8_t*>(privkey_bytes), 32);
-
-		//	printf("chaincode_bytes = ");
-		//	printBuffer(reinterpret_cast<uint8_t*>(chaincode_bytes), 32);
-		//}
-
+		uint32_t chaincode_bytes[8];
 		uint32_t hmac_data[16] = { 0 };
-		private_to_public(privkey_bytes, hmac_data);
 
-		//if (wordIds[0] == 1551) {
-		//	printf("\n XXXXXXXXXXXXXXXXXXXXX hmac_data = \n");
-		//	printBuffer(reinterpret_cast<uint8_t*>(hmac_data), 33);
-		//}
-
-		for (int i = 0; i < 8; i++)
-			privkey_bytes[i] = hc_swap32_S(privkey_bytes[i]);
-
-		BigInteger<8> privkey_int(privkey_bytes);
+		checkMnemonicMiddle(h, I, current_path_index_length, privkey_bytes, chaincode_bytes, hmac_data);
 
 		for (uint32_t j = addressStartIndex; j < addressStartIndex + addrsToGenerate; j++) {
 
-			uint32_t tmp = hc_swap32_S(j);
-			memcpy(reinterpret_cast<uint8_t*>(hmac_data) + 33, &tmp, 4);
-
-			sha512_hmac_init_swap(&ctx512, chaincode_bytes, 32);
-			sha512_hmac_update_swap(&ctx512, hmac_data, 37);
-			sha512_hmac_final(&ctx512);
-
-			uint64_t h[8];
-			for (int i = 0; i < 8; i++)
-				h[i] = hc_swap64_S(ctx512.opad.h[i]);
-
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX h = \n");
-			//	printBuffer(reinterpret_cast<uint8_t*>(h), 64);
-			//}
-
-			for (int i = 0; i < 8; i++)
-				reinterpret_cast<uint32_t*>(h)[i] = hc_swap32_S(reinterpret_cast<uint32_t*>(h)[i]);
-
-			BigInteger<8> bigInt(reinterpret_cast<uint32_t*>(h));
-			bigInt += privkey_int;
-
-			BigInteger<8> bigInt3(s_generator_order);
-			bigInt.mod(bigInt3);
-
-			uint32_t d_privkey_bytes[8];
-			memcpy(d_privkey_bytes, bigInt.get(), 32);
-
-			for (int i = 0; i < 8; i++)
-				d_privkey_bytes[i] = hc_swap32_S(d_privkey_bytes[i]);
-
-			//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
-			//{
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
-			//	printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
-			//}
-
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_privkey_bytes = \n");
-			//	printBuffer(reinterpret_cast<uint8_t*>(d_privkey_bytes), 32);
-			//}
-
-			uint32_t d_pubkey[16] = { 0 };
-			private_to_public_full(d_privkey_bytes, d_pubkey);
-
-
-			//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
-			//{
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
-			//	printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
-			//}
-
-			//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-			//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX d_pubkey = \n");
-			//	printBuffer(reinterpret_cast<uint8_t*>(d_pubkey), 64);
-			//}
-
-			bool equal = true;
-
-			if (wallet == Wallet::ETHEREUM)
-			{
-				uint32_t r[8];
-				keccak256(r, d_pubkey, 64);
-
-				const uint32_t* addressWords = reinterpret_cast<uint32_t*>(s_address);
-				//const uint32_t* addressWordsTest = reinterpret_cast<uint32_t*>(d_ctx512.h) + 11;
-				const uint32_t* addressWordsTest = r + 3;
-
-				//if (wordIds[0] == 1237 && posArr[0] == mnemonicNumber) {
-				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWords = \n");
-				//	printBuffer(reinterpret_cast<const uint8_t *>(addressWords), 20);
-
-				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX addressWordsTest = \n");
-				//	printBuffer(reinterpret_cast<const uint8_t*>(addressWordsTest), 20);
-
-				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX r = \n");
-				//	printBuffer(reinterpret_cast<const uint8_t*>(r), 32);
-				//}
-
-				if (!addressDb) {
-					for (int i = 0; i < 5; i++)
-						if (addressWords[i] != addressWordsTest[i])
-							equal = false;
-				}
-				else {
-					//printf("XXX");
-					equal = findInDatabase(reinterpret_cast<const uint8_t*>(addressWordsTest), addressDb, addressDbParams);
-				}
-			}
-			else if (wallet == Wallet::BITCOIN)
-			{
-				uint32_t compressed_pubkey[16] = { 0 };
-				reinterpret_cast<uint8_t*>(compressed_pubkey)[0] = (reinterpret_cast<uint8_t*>(d_pubkey)[63] & 0x01) + 2;
-				memcpy(reinterpret_cast<uint8_t*>(compressed_pubkey) + 1, d_pubkey, 32);
-
-				sha256_ctx_t sha256_ctx;
-				sha256_init(&sha256_ctx);
-				sha256_update_swap(&sha256_ctx, compressed_pubkey, 33);
-				sha256_final(&sha256_ctx);
-
-				for (int i = 0; i < 8; i++)
-					sha256_ctx.h[i] = hc_swap32_S(sha256_ctx.h[i]);
-
-				uint32_t ripe_digest[5];
-				ripemd160(reinterpret_cast<uint8_t*>(sha256_ctx.h), 32, reinterpret_cast<uint8_t*>(ripe_digest));
-
-				if (s_derivation_path_buffer[I] - 2147483648u == 49)
-				{
-					__align__(4) uint8_t WITNESS_PROGRAM[64] = { 0 };
-					WITNESS_PROGRAM[0] = 0x00;
-					WITNESS_PROGRAM[1] = 0x14;
-					memcpy(WITNESS_PROGRAM + 2, ripe_digest, 20);
-
-					sha256_init(&sha256_ctx);
-					sha256_update_swap(&sha256_ctx, reinterpret_cast<uint32_t*>(WITNESS_PROGRAM), 22);
-					sha256_final(&sha256_ctx);
-
-					for (int i = 0; i < 8; i++)
-						sha256_ctx.h[i] = hc_swap32_S(sha256_ctx.h[i]);
-
-					ripemd160(reinterpret_cast<uint8_t*>(sha256_ctx.h), 32, reinterpret_cast<uint8_t*>(ripe_digest));
-
-					//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
-					//{
-					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX WITNESS_PROGRAM = \n");
-					//	printBuffer(WITNESS_PROGRAM, 22);
-
-					//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX sha256_ctx.h = \n");
-					//	printBuffer(reinterpret_cast<uint8_t*>(sha256_ctx.h), 32);
-					//}
-
-				}
-
-				//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
-				//{
-				//	printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX compressed_pubkey = \n");
-				//	printBuffer(reinterpret_cast<uint8_t*>(compressed_pubkey), 33);
-
-				//	//printf("\n XXXXXXXXXXXXXXXXXXXXXXXXX hh = \n");
-				//	//printBuffer(reinterpret_cast<uint8_t*>(hh), 32);
-
-				//	printf("\n ripe_digest = \n");
-				//	printBuffer(reinterpret_cast<uint8_t*>(ripe_digest), 20);
-				//}
-
-				if (!addressDb) {
-					const uint32_t* addressWords = reinterpret_cast<uint32_t*>(s_address);
-					for (int i = 0; i < 5; i++)
-						if (addressWords[i] != ripe_digest[i])
-							equal = false;
-				}
-				else {
-					equal = findInDatabase(reinterpret_cast<const uint8_t*>(ripe_digest), addressDb, addressDbParams);
-				}
-
-			}
+			bool equal = checkMnemonicFinish(wallet, addressDb, addressDbParams, privkey_bytes, chaincode_bytes, hmac_data, j, I);
 
 			if (equal) {
 				resultLocal.derPathIdx = k;
