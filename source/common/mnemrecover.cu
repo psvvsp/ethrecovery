@@ -213,7 +213,7 @@ struct ResultLocal
 };
 
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-static __device__ ResultLocal checkMnemonicStart(
+static __device__ void checkMnemonicStart(
 	const uint16_t* mnemo,
 	const uint8_t* dictionary,
 	uint64_t h[8])
@@ -533,6 +533,14 @@ static __device__ bool checkMnemonicFinish(
 }
 
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
+static __global__ void checkMnemonicStartKernel(
+
+)
+{
+
+}
+
+template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
 static __device__ ResultLocal checkMnemonic(
 	Wallet wallet,
 	uint16_t* mnemo,
@@ -657,17 +665,12 @@ __global__ void ethrecover_kernel(
 
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
 //__launch_bounds__(THREADS_PER_BLOCK, 3)
-__global__ void mnemrecover_stream_kernel(
-	Wallet wallet,
+__global__ void mnemrecover_stream_kernel_start(
 	const uint16_t *mnemos,
 	const uint32_t *offsets,
 	const uint32_t *offsetCount,
-	uint32_t addressStartIndex,
-	uint32_t addrsToGenerate,
-	Result* resultGPU,
 	const uint8_t* dictionary,
-	const uint64_t* addressDb,
-	AddressDbParams addressDbParams)
+	uint64_t* h)
 {
 	__shared__ uint32_t offsetCountShared;
 	if (threadIdx.x == 0) {
@@ -681,32 +684,151 @@ __global__ void mnemrecover_stream_kernel(
 
 	uint32_t offset = offsets[id];
 
-	//if (offset == 16384)
-	//	printf("id = %d\n", id);
+	checkMnemonicStart<DICTIONARY_POW, MNEMONIC_LENGTH>(mnemos + offset * MNEMONIC_LENGTH, dictionary, h + 8 * id);
+}
 
-	Result result;
-	//for (uint32_t i = 0; i < MNEMONIC_LENGTH; i++)
-	//	result.mnemonic[i] = id++;
-	memcpy(result.mnemonic, mnemos + offset * MNEMONIC_LENGTH, sizeof(uint16_t) * MNEMONIC_LENGTH);
-
-	//if (offset == 16384)
-	//{
-	//	for(uint32_t i = 0; i < MNEMONIC_LENGTH; i++)
-	//		printf("%d ", result.mnemonic[i]);
-	//	printf("\n");
-	//}
-
-	//ResultLocal resultLocal = { -1, -1 };
-	ResultLocal resultLocal = checkMnemonic<DICTIONARY_POW, MNEMONIC_LENGTH>(
-		wallet, result.mnemonic, addressStartIndex, addrsToGenerate, dictionary, addressDb, addressDbParams);
-
-	if (resultLocal.addressIdx != unsigned(-1) && resultLocal.derPathIdx != unsigned(-1))
-	{
-		//printf("XXX\n");
-		result.addressIdx = resultLocal.addressIdx;
-		result.derPathIdx = resultLocal.derPathIdx;
-		*resultGPU = result;
+__global__ void mnemrecover_stream_kernel_middle(
+	const uint64_t *h,
+	const uint32_t* offsetCount,
+	uint32_t I,
+	uint32_t current_path_index_length,
+	uint32_t *privkey_bytes,
+	uint32_t *chaincode_bytes,
+	uint32_t *hmac_data
+)
+{
+	__shared__ uint32_t offsetCountShared;
+	if (threadIdx.x == 0) {
+		offsetCountShared = *offsetCount;
 	}
+	__syncthreads();
+
+	uint32_t id = blockIdx.x * blockDim.x + threadIdx.x;
+	if (id >= offsetCountShared)
+		return;
+
+	checkMnemonicMiddle(h + 8 * id, I, current_path_index_length, privkey_bytes + 8 * id, chaincode_bytes + 8 * id, hmac_data + 16 * id);
+}
+
+template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
+static void __global__ mnemrecover_stream_kernel_finish(
+	Wallet wallet,
+	const uint64_t* addressDb,
+	AddressDbParams addressDbParams,
+	const uint16_t* mnemos,
+	const uint32_t* offsetCount,
+	const uint32_t* offsets,
+	uint32_t *privkey_bytes,
+	uint32_t *chaincode_bytes,
+	uint32_t *hmac_data,
+	uint32_t addressIndex,
+	uint32_t I,
+	uint32_t k,
+	Result *result)
+{
+	__shared__ uint32_t offsetCountShared;
+	if (threadIdx.x == 0) {
+		offsetCountShared = *offsetCount;
+	}
+	__syncthreads();
+
+	uint32_t id = blockIdx.x * blockDim.x + threadIdx.x;
+	if (id >= offsetCountShared)
+		return;
+
+	bool equal = checkMnemonicFinish(wallet, addressDb, addressDbParams,
+		privkey_bytes + 8 * id, chaincode_bytes + 8 * id, hmac_data + 16 * id, addressIndex, I);
+
+	if (equal)
+	{
+		result->addressIdx = addressIndex;
+		result->derPathIdx = k;
+
+		uint32_t offset = offsets[id];
+		memcpy(result->mnemonic, mnemos + offset * MNEMONIC_LENGTH, MNEMONIC_LENGTH * sizeof(uint16_t));
+		//TODO: mnemonic
+	}
+
+}
+
+template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
+static Result launchKernels(
+	uint32_t threads,
+	uint32_t blocks,
+	Wallet wallet,
+	const uint16_t *mnemo,
+	const uint8_t *dictionary,
+	const uint32_t* offsets,
+	const uint32_t* offsetCount,
+	uint64_t *h,
+	uint32_t *privkey_bytes,
+	uint32_t *chaincode_bytes,
+	uint32_t *hmac_data,
+	uint32_t addressStartIndex,
+	uint32_t addrsToGenerate,
+	uint64_t* addressDbPtr,
+    AddressDbParams addressDbParams,
+	const std::vector<uint32_t> &derivation_path_buffer,
+	Result *resultGPU
+)
+{
+	mnemrecover_stream_kernel_start<DICTIONARY_POW, MNEMONIC_LENGTH><<<blocks, threads>>>(mnemo, offsets, offsetCount, dictionary, h);
+
+	uint32_t I = 0;
+	uint32_t current_path_index_length = derivation_path_buffer[I++];
+
+	for (uint32_t k = 0; current_path_index_length != 0; k++) {
+
+		//__global__ void mnemrecover_stream_kernel_middle(
+		//	const uint64_t * h,
+		//	const uint32_t * offsetCount,
+		//	uint32_t I,
+		//	uint32_t current_path_index_length,
+		//	uint32_t * privkey_bytes,
+		//	uint32_t * chaincode_bytes,
+		//	uint32_t * hmac_data
+		//)
+		mnemrecover_stream_kernel_middle<<<blocks, threads>>>(h, offsetCount, I, current_path_index_length, privkey_bytes, chaincode_bytes, hmac_data);
+
+		for (uint32_t j = addressStartIndex; j < addressStartIndex + addrsToGenerate; j++) {
+
+			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
+			//static void __global__ mnemrecover_stream_kernel_finish(
+			//	Wallet wallet,
+			//	const uint64_t * addressDb,
+			//	AddressDbParams addressDbParams,
+			//	const uint16_t * mnemos,
+			//	const uint32_t * offsetCount,
+			//	const uint32_t * offsets,
+			//	const uint32_t * privkey_bytes,
+			//	const uint32_t * chaincode_bytes,
+			//	const uint32_t * hmac_data,
+			//	uint32_t addressIndex,
+			//	uint32_t I,
+			// 	uint32_t k,
+			//	Result * result)
+
+			mnemrecover_stream_kernel_finish<DICTIONARY_POW, MNEMONIC_LENGTH> << <blocks, threads >> > (
+				wallet,
+				addressDbPtr,
+				addressDbParams,
+				mnemo,
+				offsetCount,
+				offsets,
+				privkey_bytes,
+				chaincode_bytes,
+				hmac_data,
+				j,
+				I,
+				k,
+				resultGPU);
+		}
+
+		I += current_path_index_length;
+		current_path_index_length = derivation_path_buffer[I++];
+	}
+
+	CUDA_CALL(cudaGetLastError());
 }
 
 static bool verify_checksum(
@@ -1263,7 +1385,7 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 	DerivationPathStorage dps(wallet);
 	std::vector<uint32_t> derivationPathBuffer = dps.get(DERIVATION_PATH_BUFFER_COUNT);
 	derivationPathBuffer.resize(DERIVATION_PATH_BUFFER_COUNT, 0);
-	CUDA_CALL(cudaMemcpyToSymbol(s_derivation_path_buffer, derivationPathBuffer.data(), derivationPathBuffer.size() * sizeof(uint32_t)));
+	//CUDA_CALL(cudaMemcpyToSymbol(s_derivation_path_buffer, derivationPathBuffer.data(), derivationPathBuffer.size() * sizeof(uint32_t)));
 
 	uint64_t* addressDbPtr = nullptr;
 	AddressDbParams addressDbParams;
@@ -1284,6 +1406,18 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 
 	uint32_t* offsetCount = nullptr;
 	CUDA_CALL(cudaMalloc(&offsetCount, sizeof(uint32_t)));
+
+	uint64_t* h = nullptr;
+	CUDA_CALL(cudaMalloc(&h, threadsPerGrid * 8 * sizeof(uint64_t)));
+
+	uint32_t* privkey_bytes = nullptr;
+	CUDA_CALL(cudaMalloc(&privkey_bytes, threadsPerGrid * 8 * sizeof(uint32_t)));
+
+	uint32_t* chaincode_bytes = nullptr;
+	CUDA_CALL(cudaMalloc(&chaincode_bytes, threadsPerGrid * 8 * sizeof(uint32_t)));
+
+	uint32_t* hmac_data = nullptr;
+	CUDA_CALL(cudaMalloc(&hmac_data, threadsPerGrid *16 * sizeof(uint32_t)));
 
 	size_t mnemonicLength = 0;
 
@@ -1354,29 +1488,9 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 			//CUDA_CALL(cudaMemcpy(&offsetCountCPU, offsetCount, sizeof(uint32_t), cudaMemcpyDeviceToHost));
 			//std::cout << "offsetCount = " << offsetCountCPU << std::endl;
 
-			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-			//__global__ void mnemrecover_stream_kernel(
-			//	Wallet wallet,
-			//	const uint16_t * mnemos,
-			//	const uint32_t * offsets,
-			//	const uint32_t * offsetCount,
-			//	uint32_t addressStartIndex,
-			//	uint32_t addrsToGenerate,
-			//	Result * resultGPU,
-			//	const uint8_t * dictionary,
-			//	const uint64_t * addressDb,
-			//	AddressDbParams addressDbParams)
-			mnemrecover_stream_kernel<11, 12> << <blocksPerGrid, threadsPerBlock >> > (
-				wallet,
-				mnemoPtr[currentBuffer],
-				offsets,
-				offsetCount,
-				params.addressStartIndex,
-				params.addrsToGenerate,
-				result,
-				dictionaryGPU,
-				addressDbPtr,
-				addressDbParams);
+			launchKernels<11, 12>(threadsPerBlock, blocksPerGrid, wallet, mnemoPtr[currentBuffer], dictionaryGPU,
+				offsets, offsetCount, h, privkey_bytes, chaincode_bytes, hmac_data,
+				params.addressStartIndex, params.addrsToGenerate, addressDbPtr, addressDbParams, derivationPathBuffer, result);
 		}
 		else if (dict.sizePow() == 11 && mnemonicLength == 24) {
 			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
@@ -1396,29 +1510,10 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 			//std::cout << "offsetCount = " << offsetCountCPU << std::endl;
 			//uint32_t blocksPerGrid1 = (offsetCountCPU + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
-			//template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-			//__global__ void mnemrecover_stream_kernel(
-			//	Wallet wallet,
-			//	const uint16_t * mnemos,
-			//	const uint32_t * offsets,
-			//	const uint32_t * offsetCount,
-			//	uint32_t addressStartIndex,
-			//	uint32_t addrsToGenerate,
-			//	Result * resultGPU,
-			//	const uint8_t * dictionary,
-			//	const uint64_t * addressDb,
-			//	AddressDbParams addressDbParams)
-			mnemrecover_stream_kernel<11, 24> << <blocksPerGrid, threadsPerBlock >> > (
-				wallet,
-				mnemoPtr[currentBuffer],
-				offsets,
-				offsetCount,
-				params.addressStartIndex,
-				params.addrsToGenerate,
-				result,
-				dictionaryGPU,
-				addressDbPtr,
-				addressDbParams);
+
+			launchKernels<11, 24>(threadsPerBlock, blocksPerGrid, wallet, mnemoPtr[currentBuffer], dictionaryGPU,
+				offsets, offsetCount, h, privkey_bytes, chaincode_bytes, hmac_data,
+				params.addressStartIndex, params.addrsToGenerate, addressDbPtr, addressDbParams, derivationPathBuffer, result);
 		}
 		else
 			assert(false);
