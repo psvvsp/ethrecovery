@@ -533,14 +533,6 @@ static __device__ bool checkMnemonicFinish(
 }
 
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-static __global__ void checkMnemonicStartKernel(
-
-)
-{
-
-}
-
-template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
 static __device__ ResultLocal checkMnemonic(
 	Wallet wallet,
 	uint16_t* mnemo,
@@ -1385,7 +1377,7 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 	DerivationPathStorage dps(wallet);
 	std::vector<uint32_t> derivationPathBuffer = dps.get(DERIVATION_PATH_BUFFER_COUNT);
 	derivationPathBuffer.resize(DERIVATION_PATH_BUFFER_COUNT, 0);
-	//CUDA_CALL(cudaMemcpyToSymbol(s_derivation_path_buffer, derivationPathBuffer.data(), derivationPathBuffer.size() * sizeof(uint32_t)));
+	CUDA_CALL(cudaMemcpyToSymbol(s_derivation_path_buffer, derivationPathBuffer.data(), derivationPathBuffer.size() * sizeof(uint32_t)));
 
 	uint64_t* addressDbPtr = nullptr;
 	AddressDbParams addressDbParams;
