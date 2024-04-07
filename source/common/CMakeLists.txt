@@ -9,6 +9,7 @@ add_library(common
     "./hashcat/inc_ecc_secp256k1.cu"
     "./pbkdf2/pbkdf2.cu"
     "./pbkdf2/sha512.cu"
+    "./fastpbkdf2/fastpbkdf2.cu"
      "derivpathstorage.cpp"
      "./keccak256/keccak256.cu"
      "params.cpp"

@@ -11,6 +11,8 @@
 #include "posgen.h"
 #include "utils.h"
 
+#include "fastpbkdf2/fastpbkdf2.cuh"
+
 #include "sha256/SHA256.h"
 
 #include <cstdint>
@@ -229,9 +231,19 @@ static __device__ void checkMnemonicStart(
 	//	const word * saltbuffer, word * outbuffer,
 	//	unsigned int iters, unsigned int dkLen_bytes);
 
-	uint64_t result[8] = { 0 };
-	pbkdf2(mnemBuilder.mnemo(), mnemBuilder.mnemoSizeBytes(),
-		reinterpret_cast<const uint64_t*>(s_salt), 8, result, 2048, 64);
+	//uint64_t result[8] = { 0 };
+	//pbkdf2(mnemBuilder.mnemo(), mnemBuilder.mnemoSizeBytes(),
+	//	reinterpret_cast<const uint64_t*>(s_salt), 8, result, 2048, 64);
+	//printBuffer(reinterpret_cast<uint8_t*>(result), 64);
+
+	//uint8_t salt[9] = { 0 };
+	//memcpy(salt, s_salt, 8);
+
+	uint64_t result1[8] = { 0 };
+	fastpbkdf2_hmac_sha512(reinterpret_cast<const uint8_t*>(mnemBuilder.mnemo()),
+		mnemBuilder.mnemoSizeBytes(), s_salt, 8, 2048, reinterpret_cast<uint8_t*>(result1), 64);
+	//printBuffer(reinterpret_cast<uint8_t*>(result1), 64);
+
 
 	//const uint8_t* word = dictionary + (MAX_WORD_LENGTH + 1) * mnemo[0];
 	//if (word[0] == 'p' && word[1] == 'a' && word[2] == 'u' && word[3] == 's')
@@ -250,7 +262,7 @@ static __device__ void checkMnemonicStart(
 
 	sha512_hmac_ctx ctx512;
 	sha512_hmac_init_swap(&ctx512, reinterpret_cast<const uint32_t*>(s_seed), 12);
-	sha512_hmac_update_swap(&ctx512, reinterpret_cast<uint32_t*>(result), 64);
+	sha512_hmac_update_swap(&ctx512, reinterpret_cast<uint32_t*>(result1), 64);
 	sha512_hmac_final(&ctx512);
 
 	for (int i = 0; i < 8; i++)
