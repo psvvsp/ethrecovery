@@ -756,7 +756,7 @@ static void __global__ mnemrecover_stream_kernel_finish(
 }
 
 template<uint32_t DICTIONARY_POW, uint32_t MNEMONIC_LENGTH>
-static Result launchKernels(
+static void launchKernels(
 	uint32_t threads,
 	uint32_t blocks,
 	Wallet wallet,
