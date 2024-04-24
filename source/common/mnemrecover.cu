@@ -7,7 +7,6 @@
 #include "entbuffer.cuh"
 #include "keccak256.cuh"
 #include "mnembuilder.cuh"
-#include "pbkdf2.h"
 #include "posgen.h"
 #include "utils.h"
 

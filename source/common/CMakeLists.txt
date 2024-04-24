@@ -7,8 +7,6 @@ add_library(common
     "./hashcat/inc_hash_sha256.cu"
     "./hashcat/inc_hash_sha512.cu"
     "./hashcat/inc_ecc_secp256k1.cu"
-    "./pbkdf2/pbkdf2.cu"
-    "./pbkdf2/sha512.cu"
     "./fastpbkdf2/fastpbkdf2.cu"
      "derivpathstorage.cpp"
      "./keccak256/keccak256.cu"
@@ -20,7 +18,6 @@ add_library(common
 
 target_include_directories(common PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/hashcat
-    ${CMAKE_CURRENT_SOURCE_DIR}/pbkdf2
     ${CMAKE_CURRENT_SOURCE_DIR}/keccak256
     ${CMAKE_CURRENT_SOURCE_DIR}/ripemd160
     ${CMAKE_CURRENT_SOURCE_DIR}/base58
