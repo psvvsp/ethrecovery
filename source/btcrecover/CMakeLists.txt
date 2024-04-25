@@ -7,6 +7,7 @@ target_include_directories(btcrecover PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../common
 )
 
-set_property(TARGET btcrecover PROPERTY CUDA_ARCHITECTURES "61;86;89")
+#set_property(TARGET btcrecover PROPERTY CUDA_ARCHITECTURES "61;86;89")
+set_property(TARGET btcrecover PROPERTY CUDA_ARCHITECTURES OFF)
 
 install(TARGETS btcrecover DESTINATION .)

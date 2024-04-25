@@ -28,7 +28,8 @@ if(MSVC)
     endforeach()
 endif(MSVC)
 
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v -maxrregcount 128")
+#set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v -maxrregcount 128 --dlink-time-opt -arch=sm_61 -arch=sm_86 -arch=sm_89 --gen-opt-lto")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v -maxrregcount 128 --dlink-time-opt -arch=all-major --gen-opt-lto")
 #set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v")
 
 install(DIRECTORY data/wordlists DESTINATION .)

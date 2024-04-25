@@ -25,8 +25,10 @@ target_include_directories(common PRIVATE
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
 #set_property(TARGET ethrecover PROPERTY CUDA_ARCHITECTURES "70;75;80")
-set_property(TARGET common PROPERTY CUDA_ARCHITECTURES "61;86;89")
+#set_property(TARGET common PROPERTY CUDA_ARCHITECTURES "61;86;89")
+set_property(TARGET common PROPERTY CUDA_ARCHITECTURES OFF)
 set_property(TARGET common PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+
 
 find_package(uni-algo CONFIG REQUIRED)
 target_link_libraries(common PRIVATE uni-algo::uni-algo)

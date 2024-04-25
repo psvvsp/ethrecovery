@@ -56,12 +56,12 @@ __constant__ uint32_t s_generator_order[8] = {
 };
 __constant__ __align__(4) uint8_t s_address[ADDRESS_LENGTH_BTC];
 
-static __host__ __device__ void printBuffer(const uint8_t* buffer, uint32_t size)
-{
-	for (uint32_t i = 0; i < size; i++)
-		printf("%02x", uint32_t(buffer[i]));
-	printf("\n");
-}
+//static __host__ __device__ void printBuffer(const uint8_t* buffer, uint32_t size)
+//{
+//	for (uint32_t i = 0; i < size; i++)
+//		printf("%02x", uint32_t(buffer[i]));
+//	printf("\n");
+//}
 
 static __device__ void private_to_public(const uint32_t* pri, uint32_t* pub)
 {
@@ -553,7 +553,7 @@ static __device__ ResultLocal checkMnemonic(
 	const uint64_t* addressDb,
 	AddressDbParams addressDbParams)
 {
-	ResultLocal resultLocal = { -1, -1 };
+	ResultLocal resultLocal = { uint32_t(-1), uint32_t(-1)};
 
 	uint64_t h[8];
 	checkMnemonicStart<DICTIONARY_POW, MNEMONIC_LENGTH>(mnemo, dictionary, h);
@@ -834,43 +834,43 @@ static void launchKernels(
 	CUDA_CALL(cudaGetLastError());
 }
 
-static bool verify_checksum(
-	const Dictionary &dict,
-	const std::vector<std::string>& mnemonicVector)
-{
-	std::ostringstream bits;
-	for (const std::string& word : mnemonicVector) {
-		size_t id;
-		if (!dict.getId(id, word))
-			return false;
-		bits << std::bitset<11>(id);
-	}
-
-	std::string bit_string = bits.str();
-
-	size_t cksum_len_in_bits = mnemonicVector.size() / 3;
-	std::vector<uint8_t> entropy_bytes;
-
-	for (size_t i = 0; i < bit_string.length() - cksum_len_in_bits; i += 8) {
-		std::string sub = bit_string.substr(i, 8);
-		entropy_bytes.push_back(uint8_t(std::stoi(sub, nullptr, 2)));
-	}
-
-	std::string sub = bit_string.substr(bit_string.length() - cksum_len_in_bits);
-	size_t cksum_int = size_t(std::stoi(sub, nullptr, 2));
-
-	SHA256 hasher;
-	hasher.update(entropy_bytes.data(), entropy_bytes.size());
-	uint8_t *digest = hasher.digest();
-
-	printBuffer(entropy_bytes.data(), static_cast<uint32_t>(entropy_bytes.size()));
-	printBuffer(digest, 32);
-
-	uint8_t candidate = digest[0] >> 8 - cksum_len_in_bits;
-
-	delete[] digest;
-	return candidate == cksum_int;
-}
+//static bool verify_checksum(
+//	const Dictionary &dict,
+//	const std::vector<std::string>& mnemonicVector)
+//{
+//	std::ostringstream bits;
+//	for (const std::string& word : mnemonicVector) {
+//		size_t id;
+//		if (!dict.getId(id, word))
+//			return false;
+//		bits << std::bitset<11>(id);
+//	}
+//
+//	std::string bit_string = bits.str();
+//
+//	size_t cksum_len_in_bits = mnemonicVector.size() / 3;
+//	std::vector<uint8_t> entropy_bytes;
+//
+//	for (size_t i = 0; i < bit_string.length() - cksum_len_in_bits; i += 8) {
+//		std::string sub = bit_string.substr(i, 8);
+//		entropy_bytes.push_back(uint8_t(std::stoi(sub, nullptr, 2)));
+//	}
+//
+//	std::string sub = bit_string.substr(bit_string.length() - cksum_len_in_bits);
+//	size_t cksum_int = size_t(std::stoi(sub, nullptr, 2));
+//
+//	SHA256 hasher;
+//	hasher.update(entropy_bytes.data(), entropy_bytes.size());
+//	uint8_t *digest = hasher.digest();
+//
+//	printBuffer(entropy_bytes.data(), static_cast<uint32_t>(entropy_bytes.size()));
+//	printBuffer(digest, 32);
+//
+//	uint8_t candidate = digest[0] >> 8 - cksum_len_in_bits;
+//
+//	delete[] digest;
+//	return candidate == cksum_int;
+//}
 
 //static bool verify_checksum_gpu(
 //	const Dictionary& dict,
