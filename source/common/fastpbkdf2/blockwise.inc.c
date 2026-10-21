@@ -20,8 +20,8 @@
 
 typedef void (*cf_blockwise_in_fn)(void *ctx, const uint8_t *data);
 
-__device__ void cf_blockwise_accumulate(uint8_t *partial, size_t *npartial, size_t nblock,
-                             const void *inp, size_t nbytes,
+__device__ void cf_blockwise_accumulate(uint8_t *partial, std::size_t *npartial, std::size_t nblock,
+                             const void *inp, std::size_t nbytes,
                              cf_blockwise_in_fn process,
                              void *ctx)
 {
@@ -33,8 +33,8 @@ __device__ void cf_blockwise_accumulate(uint8_t *partial, size_t *npartial, size
   /* If we have partial data, copy in to buffer. */
   if (*npartial && nbytes)
   {
-    size_t space = nblock - *npartial;
-    size_t taken = MIN(space, nbytes);
+    std::size_t space = nblock - *npartial;
+    std::size_t taken = MIN(space, nbytes);
 
     memcpy(partial + *npartial, bufin, taken);
 
@@ -66,8 +66,8 @@ __device__ void cf_blockwise_accumulate(uint8_t *partial, size_t *npartial, size
   /* Finally, if we have remaining data, buffer it. */
   while (nbytes)
   {
-    size_t space = nblock - *npartial;
-    size_t taken = MIN(space, nbytes);
+    std::size_t space = nblock - *npartial;
+    std::size_t taken = MIN(space, nbytes);
 
     memcpy(partial + *npartial, bufin, taken);
 
@@ -81,9 +81,9 @@ __device__ void cf_blockwise_accumulate(uint8_t *partial, size_t *npartial, size
   }
 }
 
-__device__ void cf_blockwise_acc_byte(uint8_t *partial, size_t *npartial,
-                           size_t nblock,
-                           uint8_t byte, size_t nbytes,
+__device__ void cf_blockwise_acc_byte(uint8_t *partial, std::size_t *npartial,
+                           std::size_t nblock,
+                           uint8_t byte, std::size_t nbytes,
                            cf_blockwise_in_fn process,
                            void *ctx)
 {
@@ -92,8 +92,8 @@ __device__ void cf_blockwise_acc_byte(uint8_t *partial, size_t *npartial,
 
   while (nbytes)
   {
-    size_t start = *npartial;
-    size_t count = MIN(nbytes, nblock - start);
+    std::size_t start = *npartial;
+    std::size_t count = MIN(nbytes, nblock - start);
 
     if (!filled)
       memset(partial + start, byte, count);
@@ -113,10 +113,10 @@ __device__ void cf_blockwise_acc_byte(uint8_t *partial, size_t *npartial,
   }
 }
 
-__device__ static void cf_blockwise_acc_pad(uint8_t *partial, size_t *npartial,
-                                 size_t nblock,
+__device__ static void cf_blockwise_acc_pad(uint8_t *partial, std::size_t *npartial,
+                                 std::size_t nblock,
                                  uint8_t fbyte, uint8_t mbyte, uint8_t lbyte,
-                                 size_t nbytes,
+                                 std::size_t nbytes,
                                  cf_blockwise_in_fn process,
                                  void *ctx)
 {

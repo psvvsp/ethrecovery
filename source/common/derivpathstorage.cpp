@@ -41,24 +41,24 @@ DerivationPathStorage::DerivationPathStorage(Wallet wallet)
 	}
 }
 
-std::vector<uint32_t> DerivationPathStorage::get(size_t maxSize) const
+std::vector<uint32_t> DerivationPathStorage::get(std::size_t maxSize) const
 {
 	std::vector<uint32_t> result;
 
 	for (const std::string& path : m_paths) {
 
-		size_t pos = result.size();
+		std::size_t pos = result.size();
 		if (pos < maxSize)
 			result.push_back(0);
 		else
 			assert(false);
 
-		size_t offsetPrev = size_t(-1);
+		std::size_t offsetPrev = std::size_t(-1);
 		
 		do {
 			offsetPrev++;
-			size_t offsetCurr = path.find('/', offsetPrev);
-			size_t count = ((offsetCurr == std::string::npos) ? (offsetCurr) : (offsetCurr - offsetPrev));
+			std::size_t offsetCurr = path.find('/', offsetPrev);
+			std::size_t count = ((offsetCurr == std::string::npos) ? (offsetCurr) : (offsetCurr - offsetPrev));
 			std::string sub = path.substr(offsetPrev, count);
 			offsetPrev = offsetCurr;
 

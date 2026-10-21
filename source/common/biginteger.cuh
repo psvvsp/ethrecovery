@@ -1,8 +1,9 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 
-template <size_t WORDS>
+template <std::size_t WORDS>
 class BigInteger
 {
 public:
@@ -21,14 +22,14 @@ private:
 	uint32_t *m_buffer;
 };
 
-template<size_t WORDS>
+template<std::size_t WORDS>
 __device__  BigInteger<WORDS>::BigInteger(uint32_t* buffer)
 {
 	m_first = 0;
 	m_buffer = buffer;
 }
 
-template<size_t WORDS>
+template<std::size_t WORDS>
 __device__  void BigInteger<WORDS>::operator+=(const BigInteger<WORDS>& bi)
 {
 	uint64_t sum = 0;
@@ -40,7 +41,7 @@ __device__  void BigInteger<WORDS>::operator+=(const BigInteger<WORDS>& bi)
 	m_first = uint32_t(sum) + bi.m_first;
 }
 
-template<size_t WORDS>
+template<std::size_t WORDS>
 __device__  void BigInteger<WORDS>::operator-=(const BigInteger<WORDS>& bi)
 {
 	uint32_t carry = 0u;
@@ -65,7 +66,7 @@ __device__  void BigInteger<WORDS>::operator-=(const BigInteger<WORDS>& bi)
 	assert(m_first == 0 || m_first == 1);
 }
 
-template<size_t WORDS>
+template<std::size_t WORDS>
 __device__ bool BigInteger<WORDS>::operator<(const BigInteger<WORDS>& bi)
 {
 	if (m_first < bi.m_first)
@@ -82,7 +83,7 @@ __device__ bool BigInteger<WORDS>::operator<(const BigInteger<WORDS>& bi)
 	return false;
 }
 
-template<size_t WORDS>
+template<std::size_t WORDS>
 __device__ void BigInteger<WORDS>::mod(const BigInteger<WORDS>& bi)
 {
 	while (!(*this < bi))

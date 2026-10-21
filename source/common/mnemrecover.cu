@@ -28,7 +28,7 @@
 #include "base58.h"
 #include "bech32.h"
 
-#include "uni_algo/norm.h"
+#include "uni_algo/uni_algo.h"
 
 #include <bitset>
 #include <chrono>
@@ -840,7 +840,7 @@ static void launchKernels(
 //{
 //	std::ostringstream bits;
 //	for (const std::string& word : mnemonicVector) {
-//		size_t id;
+//		std::size_t id;
 //		if (!dict.getId(id, word))
 //			return false;
 //		bits << std::bitset<11>(id);
@@ -848,16 +848,16 @@ static void launchKernels(
 //
 //	std::string bit_string = bits.str();
 //
-//	size_t cksum_len_in_bits = mnemonicVector.size() / 3;
+//	std::size_t cksum_len_in_bits = mnemonicVector.size() / 3;
 //	std::vector<uint8_t> entropy_bytes;
 //
-//	for (size_t i = 0; i < bit_string.length() - cksum_len_in_bits; i += 8) {
+//	for (std::size_t i = 0; i < bit_string.length() - cksum_len_in_bits; i += 8) {
 //		std::string sub = bit_string.substr(i, 8);
 //		entropy_bytes.push_back(uint8_t(std::stoi(sub, nullptr, 2)));
 //	}
 //
 //	std::string sub = bit_string.substr(bit_string.length() - cksum_len_in_bits);
-//	size_t cksum_int = size_t(std::stoi(sub, nullptr, 2));
+//	std::size_t cksum_int = std::size_t(std::stoi(sub, nullptr, 2));
 //
 //	SHA256 hasher;
 //	hasher.update(entropy_bytes.data(), entropy_bytes.size());
@@ -883,7 +883,7 @@ static void launchKernels(
 //	const uint32_t size = buf.entropyBytesSize();
 //
 //	for (const std::string& word : mnemonicVector) {
-//		size_t id;
+//		std::size_t id;
 //		if (!dict.getId(id, word))
 //			return false;
 //		buf.append(uint32_t(id));
@@ -891,14 +891,14 @@ static void launchKernels(
 //		std::cout << id << " " << std::bitset<11>(id) << std::endl;
 //		bits << std::bitset<11>(id);
 //
-//		for (size_t i = 0; i < size; i++) {
+//		for (std::size_t i = 0; i < size; i++) {
 //			std::cout << std::bitset<8>(data[i]);
 //		}
 //		std::cout << std::endl;
 //		std::cout << bits.str() << std::endl;
 //	}
 //
-//	for (size_t i = 0; i < size; i++) {
+//	for (std::size_t i = 0; i < size; i++) {
 //		bits << std::bitset<8>(data[i]);
 //	}
 //
@@ -906,7 +906,7 @@ static void launchKernels(
 //	hasher.update(buf.entropyBytesData(), buf.entropyBytesSize());
 //	uint8_t* digest = hasher.digest();
 //
-//	size_t cksum_len_in_bits = mnemonicVector.size() / 3;
+//	std::size_t cksum_len_in_bits = mnemonicVector.size() / 3;
 //	uint8_t candidate = digest[0] >> 8 - cksum_len_in_bits;
 //
 //	delete[] digest;
@@ -934,14 +934,14 @@ static std::vector<std::string> split(const std::string &str)
 	return result;
 }
 
-static std::set<size_t> parseMissingPositions(const std::string missingPositions, size_t mnemonicLength)
+static std::set<std::size_t> parseMissingPositions(const std::string missingPositions, std::size_t mnemonicLength)
 {
-	std::set<size_t> result;
+	std::set<std::size_t> result;
 	
 	std::vector<std::string> v = split(missingPositions);
 
 	for (const std::string& s : v) {
-		size_t pos = std::stoi(s);
+		std::size_t pos = std::stoi(s);
 		if (pos >= mnemonicLength)
 			std::cout << "Warning: invalid missing word position " << pos << std::endl;
 		else
@@ -983,7 +983,7 @@ static bool setAddress(const Params& params, Wallet wallet)
 	if (wallet == Wallet::ETHEREUM && params.address.size() == 2*ADDRESS_LENGTH_ETH + 2)
 	{
 		std::vector<uint8_t> addressBuffer(ADDRESS_LENGTH_ETH);
-		for (size_t i = 0; i < ADDRESS_LENGTH_ETH; i++)
+		for (std::size_t i = 0; i < ADDRESS_LENGTH_ETH; i++)
 		{
 			std::string byte = params.address.substr(2 * i + 2, 2);
 			addressBuffer.at(i) = std::stoi(byte, nullptr, 16);
@@ -1037,8 +1037,8 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 		word = una::norm::to_nfkd_utf8(word);
 
 
-	size_t gapSize = params.mnemonicLength - mnemonicVector.size();
-	std::set<size_t> missingPositions = parseMissingPositions(params.missingPositions, params.mnemonicLength);
+	std::size_t gapSize = params.mnemonicLength - mnemonicVector.size();
+	std::set<std::size_t> missingPositions = parseMissingPositions(params.missingPositions, params.mnemonicLength);
 
 	Dictionary dict(params.wordlistFile);
 
@@ -1048,8 +1048,8 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 	std::vector<unsigned> positions = posGen.gen();
 
 	std::vector<uint16_t> mnemonics(mnemonicVector.size());
-	for (size_t i = 0; i < mnemonicVector.size(); i++) {
-		size_t id;
+	for (std::size_t i = 0; i < mnemonicVector.size(); i++) {
+		std::size_t id;
 		if (!dict.getId(id, mnemonicVector.at(i)))
 		{
 			std::cout << "\"" << mnemonicVector.at(i) << "\" is not in the wordlist" << std::endl;
@@ -1111,9 +1111,9 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 	unsigned threadsPerBlock = THREADS_PER_BLOCK;
 	//unsigned threadsPerBlock = 1;
 	
-	size_t mnemNum = 1;
-	for (size_t i = 0; i < gapSize; i++)
-		mnemNum *= (size_t(1) << dict.sizePow());
+	std::size_t mnemNum = 1;
+	for (std::size_t i = 0; i < gapSize; i++)
+		mnemNum *= (std::size_t(1) << dict.sizePow());
 	mnemNum *= positions.size();
 
 	std::cout << "Number of mnemonics to check: " << mnemNum << std::endl;
@@ -1123,10 +1123,10 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 	//const unsigned blocksPerGrid = 1;
 	const unsigned threadsPerGrid = threadsPerBlock * blocksPerGrid;
 
-	size_t numLaunches = ((mnemNum - params.skip)+ threadsPerGrid - 1) / threadsPerGrid;
+	std::size_t numLaunches = ((mnemNum - params.skip)+ threadsPerGrid - 1) / threadsPerGrid;
 
 	uint64_t* mnemIds = nullptr;
-	size_t mnemIdsNumMax = 16 * threadsPerGrid;
+	std::size_t mnemIdsNumMax = 16 * threadsPerGrid;
 	CUDA_CALL(cudaMalloc(&mnemIds, mnemIdsNumMax*sizeof(uint64_t)));
 
 	Result resultCPU;
@@ -1137,9 +1137,9 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 	steady_clock::time_point begin = steady_clock::now();
 	steady_clock::time_point beginFile = begin;
 
-	for (size_t launch = 0; launch < numLaunches; launch++) {
+	for (std::size_t launch = 0; launch < numLaunches; launch++) {
 		
-		size_t offset = params.skip + launch * threadsPerGrid;
+		std::size_t offset = params.skip + launch * threadsPerGrid;
 
 		if (dict.sizePow() == 11 && params.mnemonicLength == 12) {
 
@@ -1250,7 +1250,7 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 			if (launch > 0) {
 				steady_clock::time_point end = steady_clock::now();
 				auto time_span = duration_cast<duration<double>>(end - begin);
-				std::cout << " (" << 16*size_t(threadsPerGrid / time_span.count()) << " mnemos/s)\r";
+				std::cout << " (" << 16*std::size_t(threadsPerGrid / time_span.count()) << " mnemos/s)\r";
 				//std::cout << " (" << time_span.count() << " seconds)";
 				begin = end;
 
@@ -1271,7 +1271,7 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 
 	std::string mnemonic;
 
-	for (size_t i = 0; i < params.mnemonicLength; i++)
+	for (std::size_t i = 0; i < params.mnemonicLength; i++)
 	{
 		std::string word;
 		bool success = dict.getWord(resultCPU.mnemonic[i], word);
@@ -1285,11 +1285,11 @@ std::string mnemrecover(const Params& params, Wallet wallet)
 }
 
 
-std::vector<uint16_t> readMnemonics(std::istream& in, const Dictionary& dict, size_t mnemonicCount, size_t &mnemonicLength)
+std::vector<uint16_t> readMnemonics(std::istream& in, const Dictionary& dict, std::size_t mnemonicCount, std::size_t &mnemonicLength)
 {
 	std::vector<uint16_t> result;
 
-	for (size_t i = 0; i < mnemonicCount; i++)
+	for (std::size_t i = 0; i < mnemonicCount; i++)
 	{
 		std::string mnemonic;
 		if (!std::getline(in, mnemonic))
@@ -1315,7 +1315,7 @@ std::vector<uint16_t> readMnemonics(std::istream& in, const Dictionary& dict, si
 		std::vector<uint16_t> idVector;
 		for (const std::string& word : mnemonicVector)
 		{
-			size_t id;
+			std::size_t id;
 			if (!dict.getId(id, word))
 			{
 				std::cout << "Warning: the word \"" << word << "\" is not in the dictionary. Skip mnemonic" << std::endl;
@@ -1422,10 +1422,10 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 	uint32_t* hmac_data = nullptr;
 	CUDA_CALL(cudaMalloc(&hmac_data, threadsPerGrid *16 * sizeof(uint32_t)));
 
-	size_t mnemonicLength = 0;
+	std::size_t mnemonicLength = 0;
 
-	size_t mnemosProcessedTotal = 0;
-	size_t mnemosProcessedIteration = 0;
+	std::size_t mnemosProcessedTotal = 0;
+	std::size_t mnemosProcessedIteration = 0;
 
 	using namespace std::chrono;
 	steady_clock::time_point begin = steady_clock::now();
@@ -1456,10 +1456,10 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 
 
 		steady_clock::time_point end = steady_clock::now();
-		size_t ms = duration_cast<microseconds>(end - begin).count();
+		std::size_t ms = duration_cast<microseconds>(end - begin).count();
 		begin = end;
 		std::cout << "Processed mnemonics: " << mnemosProcessedTotal 
-			 << " (" << (ms ? size_t(1'000'000 * mnemosProcessedIteration / ms) : mnemosProcessedIteration)
+			 << " (" << (ms ? std::size_t(1'000'000 * mnemosProcessedIteration / ms) : mnemosProcessedIteration)
 			 << " mnemos/seconds)\r";
 
 		CUDA_CALL(cudaMemcpy(&resultCPU, result, sizeof(Result), cudaMemcpyDeviceToHost));
@@ -1533,7 +1533,7 @@ std::string mnemrecover_stream(std::istream& in, const Params& params, Wallet wa
 
 	std::string mnemonic;
 
-	for (size_t i = 0; i < mnemonicLength; i++)
+	for (std::size_t i = 0; i < mnemonicLength; i++)
 	{
 		std::string word;
 		bool success = dict.getWord(resultCPU.mnemonic[i], word);

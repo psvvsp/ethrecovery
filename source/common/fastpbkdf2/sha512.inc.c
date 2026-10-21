@@ -23,7 +23,7 @@ typedef struct
   uint64_t H[8];
   uint8_t partial[CF_SHA512_BLOCKSZ];
   uint32_t blocks;
-  size_t npartial;
+  std::size_t npartial;
 } cf_sha512_context;
 
 typedef uint64_t cf_sha512_block[16];
@@ -190,7 +190,7 @@ __device__ static void sha512_update_block(void *vctx, const uint8_t *inp)
   ctx->blocks += 1;
 }
 
-__device__ static void cf_sha512_update(cf_sha512_context *ctx, const void *data, size_t nbytes)
+__device__ static void cf_sha512_update(cf_sha512_context *ctx, const void *data, std::size_t nbytes)
 {
   cf_blockwise_accumulate(ctx->partial, &ctx->npartial, sizeof ctx->partial,
                           data, nbytes,
@@ -210,7 +210,7 @@ __device__ static void sha512_convert_output(const uint64_t H[8],
   write64_be(H[7], hash + 56);
 }
 
-__device__ static void sha512_xor(uint64_t *restrict out, const uint64_t *restrict in)
+__device__ static void sha512_xor(uint64_t *__restrict out, const uint64_t *__restrict in)
 {
   out[0] ^= in[0];
   out[1] ^= in[1];
@@ -228,7 +228,7 @@ __device__ static void cf_sha512_final(cf_sha512_context *ctx, uint8_t hash[CF_S
   digested_bytes = digested_bytes * CF_SHA512_BLOCKSZ + ctx->npartial;
   uint32_t digested_bits = digested_bytes * 8;
 
-  size_t padbytes = CF_SHA512_BLOCKSZ - ((digested_bytes + 4) % CF_SHA512_BLOCKSZ);
+  std::size_t padbytes = CF_SHA512_BLOCKSZ - ((digested_bytes + 4) % CF_SHA512_BLOCKSZ);
 
   /* Hash 0x80 00 ... block first. */
   cf_blockwise_acc_pad(ctx->partial, &ctx->npartial, sizeof ctx->partial,

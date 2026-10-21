@@ -33,34 +33,34 @@
 
 __device__ static inline uint32_t read32_be(const uint8_t x[4])
 {
-#if defined(__GNUC__) && __GNUC__ >= 4 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  return __builtin_bswap32(*(uint32_t *)(x));
-#else
+//#if defined(__GNUC__) && __GNUC__ >= 4 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+//  return __builtin_bswap32(*(uint32_t *)(x));
+//#else
   uint32_t r = (uint32_t)(x[0]) << 24 |
                (uint32_t)(x[1]) << 16 |
                (uint32_t)(x[2]) << 8 |
                (uint32_t)(x[3]);
   return r;
-#endif
+//#endif
 }
 
 __device__ static inline void write32_be(uint32_t n, uint8_t out[4])
 {
-#if defined(__GNUC__) && __GNUC__ >= 4 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  *(uint32_t *)(out) = __builtin_bswap32(n);
-#else
+//#if defined(__GNUC__) && __GNUC__ >= 4 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+//  *(uint32_t *)(out) = __builtin_bswap32(n);
+//#else
   out[0] = (n >> 24) & 0xff;
   out[1] = (n >> 16) & 0xff;
   out[2] = (n >> 8) & 0xff;
   out[3] = n & 0xff;
-#endif
+//#endif
 }
 
 __device__ static inline uint64_t read64_be(const uint8_t x[8])
 {
-#if defined(__GNUC__) && __GNUC__ >= 4 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  return __builtin_bswap64(*(uint64_t *)(x));
-#else
+//#if defined(__GNUC__) && __GNUC__ >= 4 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+//  return __builtin_bswap64(*(uint64_t *)(x));
+//#else
   uint64_t r = (uint64_t)(x[0]) << 56 |
                (uint64_t)(x[1]) << 48 |
                (uint64_t)(x[2]) << 40 |
@@ -70,17 +70,17 @@ __device__ static inline uint64_t read64_be(const uint8_t x[8])
                (uint64_t)(x[6]) << 8 |
                (uint64_t)(x[7]);
   return r;
-#endif
+//#endif
 }
 
 __device__ static inline void write64_be(uint64_t n, uint8_t out[8])
 {
-#if defined(__GNUC__) &&  __GNUC__ >= 4 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  *(uint64_t *)(out) = __builtin_bswap64(n);
-#else
+//#if defined(__GNUC__) &&  __GNUC__ >= 4 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+//  *(uint64_t *)(out) = __builtin_bswap64(n);
+//#else
   write32_be((n >> 32) & 0xffffffff, out);
   write32_be(n & 0xffffffff, out + 4);
-#endif
+//#endif
 }
 
 /* --- Optional OpenMP parallelisation of consecutive blocks --- */
@@ -94,7 +94,7 @@ __device__ static inline void write64_be(uint64_t n, uint8_t out[8])
  * message (in bytes).  block has a prefix of used bytes.
  *
  * Message length is expressed in 32 bits (so suitable for sha1, sha256, sha512). */
-__device__ static inline void md_pad(uint8_t *block, size_t blocksz, size_t used, size_t msg)
+__device__ static inline void md_pad(uint8_t *block, std::size_t blocksz, std::size_t used, std::size_t msg)
 {
   memset(block + used, 0, blocksz - used - 4);
   block[used] = 0x80;
@@ -107,26 +107,26 @@ __device__ static inline void md_pad(uint8_t *block, size_t blocksz, size_t used
 //#include "sha256.inc.c"
 #include "sha512.inc.c"
 
-//__device__ void fastpbkdf2_hmac_sha1(const uint8_t *pw, size_t npw,
-//                          const uint8_t *salt, size_t nsalt,
+//__device__ void fastpbkdf2_hmac_sha1(const uint8_t *pw, std::size_t npw,
+//                          const uint8_t *salt, std::size_t nsalt,
 //                          uint32_t iterations,
-//                          uint8_t *out, size_t nout)
+//                          uint8_t *out, std::size_t nout)
 //{
 //  PBKDF2(sha1)(pw, npw, salt, nsalt, iterations, out, nout);
 //}
 //
-//__device__ void fastpbkdf2_hmac_sha256(const uint8_t *pw, size_t npw,
-//                            const uint8_t *salt, size_t nsalt,
+//__device__ void fastpbkdf2_hmac_sha256(const uint8_t *pw, std::size_t npw,
+//                            const uint8_t *salt, std::size_t nsalt,
 //                            uint32_t iterations,
-//                            uint8_t *out, size_t nout)
+//                            uint8_t *out, std::size_t nout)
 //{
 //  PBKDF2(sha256)(pw, npw, salt, nsalt, iterations, out, nout);
 //}
 
-__device__ void fastpbkdf2_hmac_sha512(const uint8_t *pw, size_t npw,
-                            const uint8_t *salt, size_t nsalt,
+__device__ void fastpbkdf2_hmac_sha512(const uint8_t *pw, std::size_t npw,
+                            const uint8_t *salt, std::size_t nsalt,
                             uint32_t iterations,
-                            uint8_t *out, size_t nout)
+                            uint8_t *out, std::size_t nout)
 {
   PBKDF2(sha512)(pw, npw, salt, nsalt, iterations, out, nout);
 }

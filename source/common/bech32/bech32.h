@@ -86,7 +86,7 @@ extern "C" {
     */
     typedef struct bech32_bstring_s {
         char* string;
-        size_t length;
+        std::size_t length;
     } bech32_bstring;
 
     /**
@@ -110,9 +110,9 @@ extern "C" {
     typedef struct bech32_DecodedResult_s {
         bech32_encoding encoding;
         char* hrp;
-        size_t hrplen;
+        std::size_t hrplen;
         unsigned char* dp;
-        size_t dplen;
+        std::size_t dplen;
     } bech32_DecodedResult;
 
     /**
@@ -169,7 +169,7 @@ extern "C" {
      *
      * @return length of to-be-encoded bech32 string
      */
-    extern size_t bech32_compute_encoded_string_length(size_t hrplen, size_t dplen);
+    extern std::size_t bech32_compute_encoded_string_length(std::size_t hrplen, std::size_t dplen);
 
     /**
      * Allocates memory for a to-be-encoded bech32 string
@@ -181,7 +181,7 @@ extern "C" {
      *
      * @return a pointer to a new bech32_bstring struct, or NULL if error
      */
-    extern bech32_bstring* bech32_create_bstring(size_t hrplen, size_t dplen);
+    extern bech32_bstring* bech32_create_bstring(std::size_t hrplen, std::size_t dplen);
 
     /**
      * Allocates memory for a to-be-encoded bech32 string based on the size of the bech32_DecodedResult struct
@@ -214,8 +214,8 @@ extern "C" {
      * long enough for string)
      */
     extern bech32_error bech32_stripUnknownChars(
-        char* dst, size_t dstlen,
-        const char* src, size_t srclen);
+        char* dst, std::size_t dstlen,
+        const char* src, std::size_t srclen);
 
     /**
      * encode a "human-readable part" (ex: "xyz") and a "data part" (ex: {1,2,3}), returning a
@@ -232,7 +232,7 @@ extern "C" {
     extern bech32_error bech32_encode(
         bech32_bstring* bstring,
         const char* hrp,
-        const unsigned char* dp, size_t dplen);
+        const unsigned char* dp, std::size_t dplen);
 
     /**
      * encode a "human-readable part" (ex: "xyz") and a "data part" (ex: {1,2,3}), returning a
@@ -249,7 +249,7 @@ extern "C" {
     extern bech32_error bech32_encode_using_original_constant(
         bech32_bstring* bstring,
         const char* hrp,
-        const unsigned char* dp, size_t dplen);
+        const unsigned char* dp, std::size_t dplen);
 
     /**
      * decode a bech32 string, returning the "human-readable part" and a "data part"

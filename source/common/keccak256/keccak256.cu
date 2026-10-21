@@ -77,17 +77,17 @@ __device__ static inline void keccakf(void* state)
 
 #define _(S) do { S } while (0)
 #define FOR(i, ST, L, S) \
-	_(for (size_t i = 0; i < L; i += ST) { S; })
+	_(for (std::size_t i = 0; i < L; i += ST) { S; })
 #define mkapply_ds(NAME, S)                                          \
 	__device__ static inline void NAME(uint8_t* dst,                              \
 							uint8_t const* src,                        \
-							size_t len) {                              \
+							std::size_t len) {                              \
 		FOR(i, 1, len, S);                                               \
 	}
 #define mkapply_sd(NAME, S)                                          \
 	__device__ static inline void NAME(uint8_t const* src,                        \
 							uint8_t* dst,                              \
-							size_t len) {                              \
+							std::size_t len) {                              \
 		FOR(i, 1, len, S);                                               \
 	}
 
@@ -109,10 +109,10 @@ __device__ static inline void keccakf(void* state)
 /** The sponge-based hash construction. **/
 __device__ inline void hash(
 	uint8_t* out,
-	size_t outlen,
+	std::size_t outlen,
 	uint8_t const* in,
-	size_t inlen,
-	size_t rate,
+	std::size_t inlen,
+	std::size_t rate,
 	uint8_t delim
 )
 {

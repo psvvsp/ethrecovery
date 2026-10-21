@@ -106,17 +106,17 @@ DECLSPEC u32 hc_atomic_or (GLOBAL_AS u32 *p, volatile const u32 val)
   return atomicOr (p, val);
 }
 
-//DECLSPEC size_t get_global_id  (const u32 dimindx __attribute__((unused)))
+//DECLSPEC std::size_t get_global_id  (const u32 dimindx __attribute__((unused)))
 //{
 //  return (blockIdx.x * blockDim.x) + threadIdx.x;
 //}
 
-//DECLSPEC size_t get_local_id (const u32 dimindx __attribute__((unused)))
+//DECLSPEC std::size_t get_local_id (const u32 dimindx __attribute__((unused)))
 //{
 //  return threadIdx.x;
 //}
 
-//DECLSPEC size_t get_local_size (const u32 dimindx __attribute__((unused)))
+//DECLSPEC std::size_t get_local_size (const u32 dimindx __attribute__((unused)))
 //{
   // verify
 //  return blockDim.x;
@@ -210,17 +210,17 @@ DECLSPEC u32 hc_atomic_or (GLOBAL_AS u32 *p, volatile const u32 val)
   return atomicOr (p, val);
 }
 
-DECLSPEC size_t get_global_id  (const u32 dimindx __attribute__((unused)))
+DECLSPEC std::size_t get_global_id  (const u32 dimindx __attribute__((unused)))
 {
   return (blockIdx.x * blockDim.x) + threadIdx.x;
 }
 
-DECLSPEC size_t get_local_id (const u32 dimindx __attribute__((unused)))
+DECLSPEC std::size_t get_local_id (const u32 dimindx __attribute__((unused)))
 {
   return threadIdx.x;
 }
 
-DECLSPEC size_t get_local_size (const u32 dimindx __attribute__((unused)))
+DECLSPEC std::size_t get_local_size (const u32 dimindx __attribute__((unused)))
 {
   // verify
   return blockDim.x;

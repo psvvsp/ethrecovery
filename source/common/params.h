@@ -13,18 +13,18 @@ struct Params
     void print(std::ostream& out) const;
     void printCudaDevices(std::ostream& out) const;
 
-    void dumpProgress(size_t skip) const;
+    void dumpProgress(std::size_t skip) const;
     void restoreFromFile(int& argc, char**& argv);
 
     std::string address;
     std::string addressdb;
     std::string wordlistFile;
     std::string mnemonic;
-    size_t mnemonicLength;
+    std::size_t mnemonicLength;
     std::string missingPositions;
     unsigned addrsToGenerate;
     unsigned addressStartIndex;
-    size_t skip;
+    std::size_t skip;
     int cudaDevice;
     std::string mnemonicFile;
     bool mnemonicStdin;

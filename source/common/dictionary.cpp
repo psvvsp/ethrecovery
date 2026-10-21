@@ -1,6 +1,6 @@
 #include "dictionary.h"
 
-#include "uni_algo/norm.h"
+#include "uni_algo/uni_algo.h"
 
 #include <cassert>
 #include <fstream>
@@ -14,7 +14,7 @@ Dictionary::Dictionary(const std::string& filename)
 	if (!fin.is_open())
 		std::cout << "Failed to open wordlist file" << std::endl;
 
-	for(size_t i = 0; ; i++) {
+	for(std::size_t i = 0; ; i++) {
 		std::string word;
 		fin >> word;
 		if (!fin) break;
@@ -28,7 +28,7 @@ Dictionary::Dictionary(const std::string& filename)
 	}
 }
 
-bool Dictionary::getId(size_t& id, const std::string& word) const
+bool Dictionary::getId(std::size_t& id, const std::string& word) const
 {
 	auto it = m_words.find(word);
 	
@@ -39,7 +39,7 @@ bool Dictionary::getId(size_t& id, const std::string& word) const
 	return true;
 }
 
-bool Dictionary::getWord(size_t id, std::string& word) const
+bool Dictionary::getWord(std::size_t id, std::string& word) const
 {
 	for(const auto &pair : m_words)
 		if (pair.second == id) {
@@ -50,12 +50,12 @@ bool Dictionary::getWord(size_t id, std::string& word) const
 	return false;
 }
 
-size_t Dictionary::sizePow() const
+std::size_t Dictionary::sizePow() const
 {
-	size_t size = m_words.size();
+	std::size_t size = m_words.size();
 	assert((size & (size - 1)) == 0);
 
-	size_t result = -1;
+	std::size_t result = -1;
 	while (size != 0) {
 		size >>= 1;
 		result++;
@@ -64,19 +64,19 @@ size_t Dictionary::sizePow() const
 	return result;
 }
 
-std::vector<uint8_t> Dictionary::get(size_t wordSizeMax) const
+std::vector<uint8_t> Dictionary::get(std::size_t wordSizeMax) const
 {
 	std::vector<uint8_t> dict(m_words.size() * (wordSizeMax + 1));
 
 	for (auto pair : m_words) {
-		size_t id = pair.second;
-		size_t offset = id * (wordSizeMax + 1);
+		std::size_t id = pair.second;
+		std::size_t offset = id * (wordSizeMax + 1);
 		const std::string &word = pair.first;
-		size_t size = word.size();
+		std::size_t size = word.size();
 		assert(size <= wordSizeMax);
-		for (size_t i = 0; i < size; i++)
+		for (std::size_t i = 0; i < size; i++)
 			dict.at(offset + i) = word.at(i);
-		for (size_t i = size; i < wordSizeMax + 1; i++)
+		for (std::size_t i = size; i < wordSizeMax + 1; i++)
 			dict.at(offset + i) = '\0';
 	}
 

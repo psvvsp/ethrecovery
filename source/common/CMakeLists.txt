@@ -8,6 +8,7 @@ add_library(common
     "./hashcat/inc_hash_sha512.cu"
     "./hashcat/inc_ecc_secp256k1.cu"
     "./fastpbkdf2/fastpbkdf2.cu"
+    "./my_pbkdf2/my_pbkdf2.cu"
      "derivpathstorage.cpp"
      "./keccak256/keccak256.cu"
      "params.cpp"
@@ -30,5 +31,5 @@ set_property(TARGET common PROPERTY CUDA_ARCHITECTURES OFF)
 set_property(TARGET common PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
 
-find_package(uni-algo CONFIG REQUIRED)
-target_link_libraries(common PRIVATE uni-algo::uni-algo)
+#find_package(uni-algo CONFIG REQUIRED)
+#target_link_libraries(common PRIVATE uni-algo::uni-algo)

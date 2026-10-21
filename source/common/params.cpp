@@ -5,6 +5,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <cstring>
 
 
 static std::string s_progressFilename = "progress.txt";
@@ -86,7 +87,7 @@ void Params::printCudaDevices(std::ostream& out) const
     }
 }
 
-void Params::dumpProgress(size_t skip) const
+void Params::dumpProgress(std::size_t skip) const
 {
     std::ofstream fout(s_progressFilename);
 
@@ -114,7 +115,7 @@ void Params::restoreFromFile(int &argc, char **&argv)
     std::vector<std::string> args(1 + 24);
     args.at(0) = "ethrecover.exe";
 
-    for (size_t i = 0; i < args.size() / 2; i++) {
+    for (std::size_t i = 0; i < args.size() / 2; i++) {
         
         std::string tmp;
         

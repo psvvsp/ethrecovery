@@ -1,9 +1,10 @@
 #include "addressdb.h"
 
+#include <cstring>
 #include <fstream>
 
 static const char s_magic[] = "seedrecover address database\r\n";
-static size_t HEADER_LEN = 65536;
+static std::size_t HEADER_LEN = 65536;
 
 AddressDb::AddressDb(const std::string &filename)
 {
@@ -31,10 +32,10 @@ AddressDb::AddressDb(const std::string &filename)
 	
 	while (true) {
 
-		size_t pos = s.find_first_of(',');
+		std::size_t pos = s.find_first_of(',');
 		std::string elem = s.substr(0, pos);
 		
-		size_t del = elem.find_first_of(':');
+		std::size_t del = elem.find_first_of(':');
 		
 		std::string key = elem.substr(0, del - 1);
 		std::string val = elem.substr(del + 1);

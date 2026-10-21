@@ -367,14 +367,14 @@ bech32_DecodedResult * bech32_create_DecodedResult(const char* str) {
     std::string inputStr(str);
     if (inputStr.size() < MIN_BECH32_LENGTH)
         return nullptr;
-    size_t index_of_separator = inputStr.find_first_of(bech32::separator);
+    std::size_t index_of_separator = inputStr.find_first_of(bech32::separator);
     if (index_of_separator == std::string::npos)
         return nullptr;
-    size_t number_of_hrp_characters = index_of_separator;
+    std::size_t number_of_hrp_characters = index_of_separator;
     if (inputStr.length() - number_of_hrp_characters - 1 < bech32::limits::CHECKSUM_LENGTH)
         // not enough data characters
         return nullptr;
-    size_t number_of_data_characters =
+    std::size_t number_of_data_characters =
         inputStr.length()
         - number_of_hrp_characters
         - bech32::limits::SEPARATOR_LENGTH
@@ -425,7 +425,7 @@ void bech32_free_DecodedResult(bech32_DecodedResult * decodedResult) {
  * @return length of to-be-encoded bech32 string
  */
 extern "C"
-size_t bech32_compute_encoded_string_length(size_t hrplen, size_t dplen) {
+std::size_t bech32_compute_encoded_string_length(std::size_t hrplen, std::size_t dplen) {
     return hrplen + SEPARATOR_LENGTH + dplen + CHECKSUM_LENGTH;
 }
 
@@ -440,7 +440,7 @@ size_t bech32_compute_encoded_string_length(size_t hrplen, size_t dplen) {
  * @return a pointer to a new bech32_bstring struct, or NULL if error
  */
 extern "C"
-bech32_bstring * bech32_create_bstring(size_t hrplen, size_t dplen) {
+bech32_bstring * bech32_create_bstring(std::size_t hrplen, std::size_t dplen) {
     if (hrplen < 1)
         return nullptr;
     auto* bstring = static_cast<bech32_bstring*>(malloc(sizeof(bech32_bstring)));
@@ -500,8 +500,8 @@ void bech32_free_bstring(bech32_bstring * bstring) {
  */
 extern "C"
 bech32_error bech32_stripUnknownChars(
-    char* dst, size_t dstlen,
-    const char* src, size_t srclen) {
+    char* dst, std::size_t dstlen,
+    const char* src, std::size_t srclen) {
 
     if (src == nullptr)
         return E_BECH32_NULL_ARGUMENT;
@@ -537,7 +537,7 @@ extern "C"
 bech32_error bech32_encode(
     bech32_bstring * bstring,
     const char* hrp,
-    const unsigned char* dp, size_t dplen) {
+    const unsigned char* dp, std::size_t dplen) {
 
     if (bstring == nullptr)
         return E_BECH32_NULL_ARGUMENT;
@@ -582,7 +582,7 @@ extern "C"
 bech32_error bech32_encode_using_original_constant(
     bech32_bstring * bstring,
     const char* hrp,
-    const unsigned char* dp, size_t dplen) {
+    const unsigned char* dp, std::size_t dplen) {
 
     if (bstring == nullptr)
         return E_BECH32_NULL_ARGUMENT;

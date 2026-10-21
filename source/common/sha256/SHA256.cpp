@@ -14,8 +14,8 @@ SHA256::SHA256(): m_blocklen(0), m_bitlen(0) {
 	m_state[7] = 0x5be0cd19;
 }
 
-void SHA256::update(const uint8_t * data, size_t length) {
-	for (size_t i = 0 ; i < length ; i++) {
+void SHA256::update(const uint8_t * data, std::size_t length) {
+	for (std::size_t i = 0 ; i < length ; i++) {
 		m_data[m_blocklen++] = data[i];
 		if (m_blocklen == 64) {
 			transform();

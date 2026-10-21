@@ -8,7 +8,7 @@ class SHA256 {
 
 public:
 	SHA256();
-	void update(const uint8_t * data, size_t length);
+	void update(const uint8_t * data, std::size_t length);
 	void update(const std::string &data);
 	uint8_t * digest();
 

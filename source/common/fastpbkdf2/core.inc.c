@@ -34,7 +34,7 @@
  * _init:       hash context initialisation function
  *    args: (_ctx *c)
  * _update:     hash context update function
- *    args: (_ctx *c, const void *data, size_t ndata)
+ *    args: (_ctx *c, const void *data, std::size_t ndata)
  * _final:      hash context finish function
  *    args: (_ctx *c, uint8_t *hash)
  * _transform:  hash context raw block update function
@@ -63,7 +63,7 @@ typedef struct {
 } HMAC_CTX(_name);
 
 __device__ static inline void HMAC_INIT(_name)(HMAC_CTX(_name) *ctx,
-                                    const uint8_t *key, size_t nkey)
+                                    const uint8_t *key, std::size_t nkey)
 {
   /* Prepare key: */
   uint8_t k[_blocksz];
@@ -92,7 +92,7 @@ __device__ static inline void HMAC_INIT(_name)(HMAC_CTX(_name) *ctx,
   uint8_t blk_inner[_blocksz];
   uint8_t blk_outer[_blocksz];
 
-  for (size_t i = 0; i < _blocksz; i++)
+  for (std::size_t i = 0; i < _blocksz; i++)
   {
     blk_inner[i] = 0x36 ^ k[i];
     blk_outer[i] = 0x5c ^ k[i];
@@ -107,7 +107,7 @@ __device__ static inline void HMAC_INIT(_name)(HMAC_CTX(_name) *ctx,
 }
 
 __device__ static inline void HMAC_UPDATE(_name)(HMAC_CTX(_name) *ctx,
-                                      const void *data, size_t ndata)
+                                      const void *data, std::size_t ndata)
 {
   _update(&ctx->inner, data, ndata);
 }
@@ -131,7 +131,7 @@ static __host__ __device__ void printBuffer(const uint8_t* buffer, uint32_t size
 /* --- PBKDF2 --- */
 __device__ static inline void PBKDF2_F(_name)(const HMAC_CTX(_name) *startctx,
                                    uint32_t counter,
-                                   const uint8_t *salt, size_t nsalt,
+                                   const uint8_t *salt, std::size_t nsalt,
                                    uint32_t iterations,
                                    uint8_t *out)
 {
@@ -200,10 +200,10 @@ __device__ static inline void PBKDF2_F(_name)(const HMAC_CTX(_name) *startctx,
   _cvt_output(result.H, out);
 }
 
-__device__ static inline void PBKDF2(_name)(const uint8_t *pw, size_t npw,
-                   const uint8_t *salt, size_t nsalt,
+__device__ static inline void PBKDF2(_name)(const uint8_t *pw, std::size_t npw,
+                   const uint8_t *salt, std::size_t nsalt,
                    uint32_t iterations,
-                   uint8_t *out, size_t nout)
+                   uint8_t *out, std::size_t nout)
 {
   assert(iterations);
   assert(out && nout);
@@ -225,8 +225,8 @@ __device__ static inline void PBKDF2(_name)(const uint8_t *pw, size_t npw,
     uint8_t block[_hashsz];
     PBKDF2_F(_name)(&ctx, counter, salt, nsalt, iterations, block);
 
-    size_t offset = (counter - 1) * _hashsz;
-    size_t taken = MIN(nout - offset, _hashsz);
+    std::size_t offset = (counter - 1) * _hashsz;
+    std::size_t taken = MIN(nout - offset, _hashsz);
     memcpy(out + offset, block, taken);
     //printBuffer(block, sizeof(block));
   }

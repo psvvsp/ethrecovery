@@ -7,7 +7,7 @@
 class PosGen
 {
 public:
-	PosGen(unsigned mnemonicLength, unsigned missingWords, const std::set<size_t> &missingPositions)
+	PosGen(unsigned mnemonicLength, unsigned missingWords, const std::set<std::size_t> &missingPositions)
 		: m_mnemonicLength(mnemonicLength)
 		, m_missingWords(missingWords)
 		, m_missingPositions(missingPositions)
@@ -26,5 +26,5 @@ private:
 
 	unsigned m_mnemonicLength;
 	unsigned m_missingWords;
-	std::set<size_t> m_missingPositions;
+	std::set<std::size_t> m_missingPositions;
 };
