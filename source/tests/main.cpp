@@ -65,7 +65,8 @@ int main(int argc, char* argv[])
             std::ifstream fresult("result.txt");
             std::stringstream buffer;
             buffer << fresult.rdbuf();
-            if (!buffer.str().find("Result:"))
+            //if (!buffer.str().find("Result:"))
+            if (buffer.str().find("Result:") == std::string::npos)
             {
                 failed++;
                 fout << std::endl;
