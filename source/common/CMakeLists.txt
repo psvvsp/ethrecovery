@@ -8,7 +8,7 @@ add_library(common
     "./hashcat/inc_hash_sha512.cu"
     "./hashcat/inc_ecc_secp256k1.cu"
     "./fastpbkdf2/fastpbkdf2.cu"
-    "./my_pbkdf2/my_pbkdf2.cu"
+#    "./my_pbkdf2/my_pbkdf2.cu"
      "derivpathstorage.cpp"
      "./keccak256/keccak256.cu"
      "params.cpp"

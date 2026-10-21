@@ -39,7 +39,7 @@ install(FILES data/mnemonics.txt DESTINATION .)
 
 file(GLOB batch_files launch_examples/*.bat)
 install(FILES ${batch_files} DESTINATION .)
-install(FILES launch_examples/Mnemo-Gen.exe DESTINATION .)
+#install(FILES launch_examples/Mnemo-Gen.exe DESTINATION .)
 
 file(GLOB test_files tests/*)
 install(FILES ${test_files} DESTINATION .)
